@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import ApiNotConfiguredBanner from './components/ApiNotConfiguredBanner.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 import Landing from './pages/Landing.jsx';
 import ParentAuth from './pages/ParentAuth.jsx';
@@ -36,43 +37,46 @@ function FullscreenSpinner() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/parent/auth" element={<ParentAuth />} />
-      <Route path="/kid/login" element={<KidLogin />} />
+    <>
+      <ApiNotConfiguredBanner />
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/parent/auth" element={<ParentAuth />} />
+        <Route path="/kid/login" element={<KidLogin />} />
 
-      <Route
-        path="/kid"
-        element={
-          <RequireRole role="kid">
-            <KidLayout />
-          </RequireRole>
-        }
-      >
-        <Route index element={<KidHome />} />
-        <Route path="history" element={<KidHistory />} />
-        <Route path="rewards" element={<KidRewards />} />
-        <Route path="suggest" element={<KidSuggest />} />
-      </Route>
+        <Route
+          path="/kid"
+          element={
+            <RequireRole role="kid">
+              <KidLayout />
+            </RequireRole>
+          }
+        >
+          <Route index element={<KidHome />} />
+          <Route path="history" element={<KidHistory />} />
+          <Route path="rewards" element={<KidRewards />} />
+          <Route path="suggest" element={<KidSuggest />} />
+        </Route>
 
-      <Route
-        path="/parent"
-        element={
-          <RequireRole role="parent">
-            <ParentLayout />
-          </RequireRole>
-        }
-      >
-        <Route index element={<ParentDashboard />} />
-        <Route path="tasks" element={<ParentTasks />} />
-        <Route path="milestones" element={<ParentMilestones />} />
-        <Route path="suggestions" element={<ParentSuggestions />} />
-        <Route path="rewards" element={<ParentRewards />} />
-        <Route path="redemptions" element={<ParentRedemptions />} />
-        <Route path="kids" element={<ParentKids />} />
-      </Route>
+        <Route
+          path="/parent"
+          element={
+            <RequireRole role="parent">
+              <ParentLayout />
+            </RequireRole>
+          }
+        >
+          <Route index element={<ParentDashboard />} />
+          <Route path="tasks" element={<ParentTasks />} />
+          <Route path="milestones" element={<ParentMilestones />} />
+          <Route path="suggestions" element={<ParentSuggestions />} />
+          <Route path="rewards" element={<ParentRewards />} />
+          <Route path="redemptions" element={<ParentRedemptions />} />
+          <Route path="kids" element={<ParentKids />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
