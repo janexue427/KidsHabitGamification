@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #f6f4ff;
+}
+
+.font-fun {
+  font-family: 'Baloo 2', 'Comic Sans MS', system-ui, sans-serif;
+}
