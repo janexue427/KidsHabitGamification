@@ -12,7 +12,7 @@ export default function ParentAuth() {
   const { user, login, loading } = useAuth();
   const navigate = useNavigate();
 
-  if (!loading && user) return <Navigate to={user.role === 'kid' ? '/kid' : '/parent'} replace />;
+  if (!loading && user && !inviteCode) return <Navigate to={user.role === 'kid' ? '/kid' : '/parent'} replace />;
 
   function update(field) {
     return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
