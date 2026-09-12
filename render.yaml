@@ -1,0 +1,29 @@
+# Render blueprint for the QuestFam API.
+# Deploy: Render dashboard → New → Blueprint → point at this repo.
+#
+# The client is hosted separately on GitHub Pages (see
+# .github/workflows/deploy-pages.yml); only the API runs here.
+services:
+  - type: web
+    name: questfam-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.4.0
+      - key: NODE_ENV
+        value: production
+      # Generated once by Render and kept private; the server refuses to boot
+      # on the dev default, so this must be present.
+      - key: JWT_SECRET
+        generateValue: true
+      # Which browser origin may call this API. Update if the Pages URL changes.
+      - key: CORS_ORIGIN
+        value: https://janexue427.github.io
+      # NOTE: the free plan has no persistent disk — SQLite is wiped on every
+      # deploy and on idle restarts. To keep family data, either add a paid
+      # disk mounted at /var/data and set DATA_DIR=/var/data, or move to Postgres.

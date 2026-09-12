@@ -35,7 +35,7 @@ export default function KidHistory() {
           <button
             key={p.key}
             onClick={() => setPeriod(p.key)}
-            className={`px-4 py-2 rounded-full text-sm font-semibold ${
+            className={`px-5 min-h-[44px] rounded-full text-sm font-semibold ${
               period === p.key ? 'bg-kid-purple text-white' : 'bg-white text-gray-500'
             }`}
           >
@@ -59,7 +59,7 @@ export default function KidHistory() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="key" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="key" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip />
               <Area type="monotone" dataKey="amount" stroke="#7c3aed" fill="url(#xpGradient)" strokeWidth={3} />
@@ -72,12 +72,12 @@ export default function KidHistory() {
         <h3 className="font-fun text-lg font-bold text-kid-purple mb-2">Recent Activity</h3>
         <div className="space-y-2">
           {transactions.map((t) => (
-            <div key={t.id} className="bg-white rounded-xl px-4 py-3 shadow flex justify-between items-center">
-              <div>
-                <p className="text-sm font-semibold">{t.note || labelForType(t.type)}</p>
+            <div key={t.id} className="bg-white rounded-xl px-4 py-3 shadow flex justify-between items-center gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold break-words">{t.note || labelForType(t.type)}</p>
                 <p className="text-xs text-gray-400">{new Date(t.created_at).toLocaleString()}</p>
               </div>
-              <span className={`font-fun font-bold ${t.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              <span className={`font-fun font-bold shrink-0 whitespace-nowrap ${t.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                 {t.amount >= 0 ? '+' : ''}
                 {t.amount} XP
               </span>

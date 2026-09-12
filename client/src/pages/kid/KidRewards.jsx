@@ -33,7 +33,7 @@ export default function KidRewards() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl p-4 shadow flex items-center justify-between">
+      <div className="bg-white rounded-2xl p-4 shadow flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-fun text-2xl font-bold text-kid-purple">Reward Shop</h2>
         <span className="font-fun text-xl font-extrabold text-kid-orange">{user?.totalXp ?? 0} XP</span>
       </div>
@@ -46,12 +46,12 @@ export default function KidRewards() {
               <div className="text-4xl mb-2">{r.icon}</div>
               <p className="font-fun font-bold text-lg">{r.title}</p>
               <p className="text-sm text-gray-500 flex-1">{r.description}</p>
-              <div className="flex items-center justify-between mt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
                 <span className="text-sm font-bold text-kid-purple">{r.xpCost} XP</span>
                 <button
                   disabled={!affordable}
                   onClick={() => redeem(r)}
-                  className={`px-3 py-1.5 rounded-xl text-sm font-bold ${
+                  className={`px-4 min-h-[44px] rounded-xl text-sm font-bold ${
                     affordable ? 'bg-kid-teal text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
@@ -71,10 +71,10 @@ export default function KidRewards() {
           <h3 className="font-fun text-lg font-bold text-kid-purple mb-2">My Requests</h3>
           <div className="space-y-2">
             {myRedemptions.map((r) => (
-              <div key={r.id} className="bg-white rounded-xl px-4 py-3 shadow flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div key={r.id} className="bg-white rounded-xl px-4 py-3 shadow flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
                   <span className="text-xl">{r.reward?.icon}</span>
-                  <span className="font-semibold text-sm">{r.reward?.title}</span>
+                  <span className="font-semibold text-sm truncate">{r.reward?.title}</span>
                 </div>
                 <StatusBadge status={r.status} />
               </div>
@@ -93,5 +93,5 @@ function StatusBadge({ status }) {
     fulfilled: 'bg-green-100 text-green-700',
     rejected: 'bg-red-100 text-red-700',
   };
-  return <span className={`text-xs font-bold px-2 py-1 rounded-full ${styles[status]}`}>{status}</span>;
+  return <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${styles[status]}`}>{status}</span>;
 }

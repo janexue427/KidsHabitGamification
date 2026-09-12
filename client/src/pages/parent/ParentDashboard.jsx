@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api } from '../../api/client.js';
+import { difficultyFor } from '../../constants/difficulty.js';
 
 const periods = [
   { key: 'day', label: 'Day' },
@@ -85,10 +86,10 @@ export default function ParentDashboard() {
       </div>
 
       <div className="bg-white rounded-2xl p-4 shadow">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
           <h2 className="font-fun text-xl font-bold text-kid-purple">XP Trend</h2>
-          <div className="flex gap-2">
-            <select value={selectedKid} onChange={(e) => setSelectedKid(e.target.value)} className="text-sm border rounded-lg px-2 py-1">
+          <div className="flex flex-wrap gap-2 items-center">
+            <select value={selectedKid} onChange={(e) => setSelectedKid(e.target.value)} className="text-base fine:text-sm border rounded-lg px-3 min-h-[44px] w-full sm:w-auto">
               <option value="all">All kids</option>
               {data.kids.map((k) => (
                 <option key={k.id} value={k.id}>{k.name}</option>
@@ -98,7 +99,7 @@ export default function ParentDashboard() {
               <button
                 key={p.key}
                 onClick={() => setPeriod(p.key)}
-                className={`px-3 py-1 rounded-full text-sm font-semibold ${period === p.key ? 'bg-kid-purple text-white' : 'bg-gray-100 text-gray-500'}`}
+                className={`px-4 min-h-[44px] rounded-full text-sm font-semibold ${period === p.key ? 'bg-kid-purple text-white' : 'bg-gray-100 text-gray-500'}`}
               >
                 {p.label}
               </button>
@@ -118,7 +119,7 @@ export default function ParentDashboard() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="key" tick={{ fontSize: 11 }} />
+                <XAxis dataKey="key" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                 <Tooltip />
                 <Area type="monotone" dataKey="amount" stroke="#14b8a6" fill="url(#pxpGradient)" strokeWidth={3} />
@@ -135,7 +136,7 @@ export default function ParentDashboard() {
             <select
               value={boostForm.kidId}
               onChange={(e) => setBoostForm((f) => ({ ...f, kidId: e.target.value }))}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="w-full border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm"
             >
               {data.kids.map((k) => (
                 <option key={k.id} value={k.id}>{k.name}</option>
@@ -148,17 +149,17 @@ export default function ParentDashboard() {
               placeholder="XP amount"
               value={boostForm.amount}
               onChange={(e) => setBoostForm((f) => ({ ...f, amount: e.target.value }))}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="w-full border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm"
             />
             <input
               placeholder="Reason (optional)"
               value={boostForm.note}
               onChange={(e) => setBoostForm((f) => ({ ...f, note: e.target.value }))}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="w-full border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm"
             />
             {boostStatus === 'sent' && <p className="text-green-600 text-sm font-semibold">Boost sent! ⚡</p>}
             {boostStatus && boostStatus !== 'sent' && <p className="text-red-500 text-sm">{boostStatus}</p>}
-            <button type="submit" disabled={!data.kids.length} className="w-full py-2 rounded-lg bg-kid-purple text-white font-semibold disabled:opacity-50">
+            <button type="submit" disabled={!data.kids.length} className="w-full min-h-[48px] rounded-lg bg-kid-purple text-white font-semibold disabled:opacity-50">
               Send Boost
             </button>
           </form>
@@ -168,9 +169,20 @@ export default function ParentDashboard() {
           <h2 className="font-fun text-lg font-bold text-kid-purple mb-3">Recent Activity</h2>
           <div className="space-y-2 max-h-72 overflow-y-auto">
             {data.activity.map((a) => (
-              <div key={a.id} className="flex items-center justify-between text-sm border-b last:border-0 pb-2">
-                <span>{a.kidAvatar} {a.kidName} — {a.note || a.type}</span>
-                <span className={a.amount >= 0 ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
+              <div key={a.id} className="flex items-center justify-between gap-3 text-sm border-b last:border-0 pb-2">
+                <span className="min-w-0 break-words">
+                  {a.kidAvatar} {a.kidName} — {a.note || a.type}
+                  {difficultyFor(a.difficulty) && (
+                    <span
+                      className="ml-1"
+                      title={`Felt: ${difficultyFor(a.difficulty).label}`}
+                      aria-label={`Felt: ${difficultyFor(a.difficulty).label}`}
+                    >
+                      {difficultyFor(a.difficulty).emoji}
+                    </span>
+                  )}
+                </span>
+                <span className={`shrink-0 whitespace-nowrap ${a.amount >= 0 ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}`}>
                   {a.amount >= 0 ? '+' : ''}{a.amount} XP
                 </span>
               </div>

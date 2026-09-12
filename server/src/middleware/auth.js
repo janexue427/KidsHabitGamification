@@ -1,6 +1,13 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const DEV_SECRET = 'dev-secret-change-me';
+const JWT_SECRET = process.env.JWT_SECRET || DEV_SECRET;
+
+// A known signing key on a public deployment lets anyone mint a parent token
+// for any family. Refuse to boot rather than serve something forgeable.
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === DEV_SECRET) {
+  throw new Error('JWT_SECRET must be set to a private value in production');
+}
 
 export function signToken(user) {
   return jwt.sign(

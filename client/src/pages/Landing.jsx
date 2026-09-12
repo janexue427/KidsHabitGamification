@@ -9,8 +9,8 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kid-purple via-kid-pink to-kid-orange px-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 text-center">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-kid-purple via-kid-pink to-kid-orange px-4 py-8">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 text-center">
         <div className="text-6xl mb-2">🏆✨</div>
         <h1 className="font-fun text-4xl font-extrabold text-kid-purple mb-2">QuestFam</h1>
         <p className="text-gray-500 mb-8">Turn everyday habits into an adventure.</p>

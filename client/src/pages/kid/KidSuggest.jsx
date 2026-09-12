@@ -46,7 +46,7 @@ export default function KidSuggest() {
               type="button"
               key={t}
               onClick={() => setForm((f) => ({ ...f, type: t }))}
-              className={`flex-1 py-2 rounded-xl font-semibold text-sm capitalize ${
+              className={`flex-1 min-h-[48px] rounded-xl font-semibold text-sm capitalize ${
                 form.type === t ? 'bg-kid-purple text-white' : 'bg-gray-100 text-gray-500'
               }`}
             >
@@ -61,7 +61,7 @@ export default function KidSuggest() {
         {status === 'sent' && <p className="text-green-600 text-sm font-semibold">Sent to your parent! 🎉</p>}
         {status && status !== 'sent' && <p className="text-red-500 text-sm">{status}</p>}
 
-        <button type="submit" className="w-full py-3 rounded-xl bg-kid-purple text-white font-bold">
+        <button type="submit" className="w-full min-h-[52px] rounded-xl bg-kid-purple text-white font-bold">
           Send Suggestion
         </button>
       </form>
@@ -71,8 +71,8 @@ export default function KidSuggest() {
         <div className="space-y-2">
           {mine.map((s) => (
             <div key={s.id} className="bg-white rounded-xl px-4 py-3 shadow">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-sm">{s.title}</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-semibold text-sm min-w-0 break-words">{s.title}</p>
                 <StatusBadge status={s.status} />
               </div>
               {s.parentNote && <p className="text-xs text-gray-500 mt-1">Parent note: {s.parentNote}</p>}
@@ -104,5 +104,5 @@ function StatusBadge({ status }) {
     approved: 'bg-green-100 text-green-700',
     rejected: 'bg-red-100 text-red-700',
   };
-  return <span className={`text-xs font-bold px-2 py-1 rounded-full ${styles[status]}`}>{status}</span>;
+  return <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${styles[status]}`}>{status}</span>;
 }

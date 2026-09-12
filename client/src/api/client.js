@@ -1,5 +1,10 @@
 const TOKEN_KEY = 'questfam_token';
 
+// In dev this stays '/api' and Vite proxies to the local server. In a deployed
+// build it is the API's own origin, because the SPA is served from GitHub Pages
+// while the API runs elsewhere. Set VITE_API_BASE_URL at build time.
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -14,7 +19,7 @@ async function request(path, { method = 'GET', body } = {}) {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,

@@ -4,6 +4,7 @@ build/
 *.log
 .env
 .env.local
-server/data/*.sqlite
-server/data/*.sqlite-journal
+# The database and every file SQLite keeps beside it. WAL mode adds -wal and
+# -shm alongside the main file, and they hold real row data — never commit them.
+server/data/
 .DS_Store

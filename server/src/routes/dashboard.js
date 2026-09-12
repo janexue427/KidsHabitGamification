@@ -62,6 +62,12 @@ router.get('/', requireAuth, requireRole('parent'), (req, res) => {
       SELECT * FROM xp_transactions WHERE kid_id IN (${placeholders}) ORDER BY created_at DESC LIMIT 25
     `).all(...kidIds);
     const kidById = Object.fromEntries(kids.map((k) => [k.id, k]));
+    // XP rows don't reference a completion, so match the one they came from:
+    // same kid, same task, same calendar day.
+    const difficultyFor = db.prepare(`
+      SELECT difficulty FROM task_completions
+      WHERE kid_id = ? AND task_id = ? AND completed_date = date(?)
+    `);
     activity = rows.map((r) => ({
       id: r.id,
       kidName: kidById[r.kid_id]?.name,
@@ -70,6 +76,9 @@ router.get('/', requireAuth, requireRole('parent'), (req, res) => {
       type: r.type,
       note: r.note,
       createdAt: r.created_at,
+      difficulty: r.type === 'task' && r.source_id
+        ? difficultyFor.get(r.kid_id, r.source_id, r.created_at)?.difficulty ?? null
+        : null,
     }));
   }
 

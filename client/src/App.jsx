@@ -28,7 +28,7 @@ function RequireRole({ role, children }) {
 
 function FullscreenSpinner() {
   return (
-    <div className="min-h-screen flex items-center justify-center text-xl text-kid-purple font-fun">
+    <div className="min-h-[100dvh] flex items-center justify-center text-xl text-kid-purple font-fun">
       Loading…
     </div>
   );

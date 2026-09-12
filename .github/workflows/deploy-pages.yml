@@ -1,0 +1,69 @@
+name: Deploy client to GitHub Pages
+
+on:
+  push:
+    branches: [claude/gamification-parents-kids-portal-a4xppo]
+    paths:
+      - 'client/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build
+        working-directory: client
+        env:
+          # Project sites live at /<repo>/, so assets need that prefix.
+          BASE_PATH: /${{ github.event.repository.name }}/
+          # Where the deployed SPA sends its API calls. Set this as a repository
+          # variable (Settings → Secrets and variables → Actions → Variables)
+          # to the Render URL; until then the build falls back to /api, which
+          # only resolves in local dev.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: npm run build
+
+      - name: Add SPA fallback for deep links
+        # Pages has no rewrite rules: a refresh on /kid/rewards is a 404. Serving
+        # the same shell as 404.html lets the router handle the path on load.
+        working-directory: client
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -32,9 +32,9 @@ export default function KidLogin() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kid-yellow via-kid-orange to-kid-pink px-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-        <Link to="/" className="text-sm text-gray-400 hover:text-gray-600">&larr; Back</Link>
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-kid-yellow via-kid-orange to-kid-pink px-4 py-8">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8">
+        <Link to="/" className="inline-flex items-center min-h-[44px] -mt-2 text-sm text-gray-400 hover:text-gray-600">&larr; Back</Link>
         <div className="text-center mb-6">
           <div className="text-5xl mb-2">🚀</div>
           <h2 className="font-fun text-3xl font-extrabold text-kid-purple">Kid Login</h2>
@@ -50,7 +50,7 @@ export default function KidLogin() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-4 rounded-2xl bg-kid-purple text-white font-fun text-xl font-bold shadow-md disabled:opacity-50"
+            className="w-full min-h-[56px] rounded-2xl bg-kid-purple text-white font-fun text-xl font-bold shadow-md disabled:opacity-50"
           >
             Let's go! 🎮
           </button>

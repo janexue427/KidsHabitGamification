@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { applyXpTransaction } from '../utils/xp.js';
 import { isDueOn, todayStr } from '../utils/recurrence.js';
 import { advanceMilestonesForKid } from '../utils/milestones.js';
+import { isValidDifficulty } from '../utils/difficulty.js';
 
 const router = Router();
 
@@ -92,7 +93,7 @@ router.get('/mine/today', requireAuth, requireRole('kid'), (req, res) => {
   });
   const result = mine.map((t) => {
     const done = db.prepare(`
-      SELECT 1 FROM task_completions WHERE task_id = ? AND kid_id = ? AND completed_date = ?
+      SELECT id, difficulty FROM task_completions WHERE task_id = ? AND kid_id = ? AND completed_date = ?
     `).get(t.id, req.user.id, today);
     return {
       id: t.id,
@@ -102,6 +103,8 @@ router.get('/mine/today', requireAuth, requireRole('kid'), (req, res) => {
       xpValue: t.xp_value,
       recurrence: t.recurrence,
       completedToday: !!done,
+      completionId: done?.id ?? null,
+      difficulty: done?.difficulty ?? null,
     };
   });
   res.json({ tasks: result, date: today });
@@ -109,6 +112,11 @@ router.get('/mine/today', requireAuth, requireRole('kid'), (req, res) => {
 
 // Kid: complete a task for today, awards XP.
 router.post('/:id/complete', requireAuth, requireRole('kid'), (req, res) => {
+  const { difficulty } = req.body || {};
+  if (difficulty !== undefined && difficulty !== null && !isValidDifficulty(difficulty)) {
+    return res.status(400).json({ error: 'Unknown difficulty' });
+  }
+
   const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND family_id = ? AND active = 1').get(req.params.id, req.user.familyId);
   if (!task) return res.status(404).json({ error: 'Task not found' });
   const assigned = db.prepare('SELECT 1 FROM task_assignments WHERE task_id = ? AND kid_id = ?').get(task.id, req.user.id);
@@ -123,15 +131,35 @@ router.post('/:id/complete', requireAuth, requireRole('kid'), (req, res) => {
   const now = new Date().toISOString();
   const completionId = nanoid();
   db.prepare(`
-    INSERT INTO task_completions (id, task_id, kid_id, completed_date, xp_awarded, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(completionId, task.id, req.user.id, today, task.xp_value, now);
+    INSERT INTO task_completions (id, task_id, kid_id, completed_date, xp_awarded, difficulty, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(completionId, task.id, req.user.id, today, task.xp_value, difficulty ?? null, now);
 
   applyXpTransaction({ kidId: req.user.id, amount: task.xp_value, type: 'task', sourceId: task.id, note: task.title });
   const milestoneResults = advanceMilestonesForKid(req.user.id, req.user.familyId);
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  res.json({ ok: true, xpAwarded: task.xp_value, totalXp: user.total_xp, milestonesCompleted: milestoneResults });
+  res.json({
+    ok: true,
+    completionId,
+    xpAwarded: task.xp_value,
+    totalXp: user.total_xp,
+    milestonesCompleted: milestoneResults,
+  });
+});
+
+// Kid: say how hard a completed task felt. Separate from completing it so the
+// rating stays optional — the XP is never held hostage to answering.
+router.post('/completions/:completionId/difficulty', requireAuth, requireRole('kid'), (req, res) => {
+  const { difficulty } = req.body || {};
+  if (!isValidDifficulty(difficulty)) return res.status(400).json({ error: 'Unknown difficulty' });
+
+  const completion = db.prepare('SELECT * FROM task_completions WHERE id = ? AND kid_id = ?')
+    .get(req.params.completionId, req.user.id);
+  if (!completion) return res.status(404).json({ error: 'Completion not found' });
+
+  db.prepare('UPDATE task_completions SET difficulty = ? WHERE id = ?').run(difficulty, completion.id);
+  res.json({ ok: true, completionId: completion.id, difficulty });
 });
 
 function assignKids(taskId, kidIds) {

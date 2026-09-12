@@ -4,7 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, '..', 'data');
+// DATA_DIR lets the database live on a mounted disk in production,
+// where the deployed filesystem is otherwise wiped on every release.
+const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
 const db = new Database(path.join(dataDir, 'app.sqlite'));
@@ -59,6 +61,7 @@ CREATE TABLE IF NOT EXISTS task_completions (
   kid_id TEXT NOT NULL REFERENCES users(id),
   completed_date TEXT NOT NULL,
   xp_awarded INTEGER NOT NULL,
+  difficulty TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(task_id, kid_id, completed_date)
 );
@@ -131,5 +134,16 @@ CREATE TABLE IF NOT EXISTS redemptions (
   parent_note TEXT
 );
 `);
+
+// Migrations for databases created before a column existed. Adding a column is
+// the only shape of change here, so a name check is enough to stay idempotent.
+function addColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+addColumn('task_completions', 'difficulty', 'TEXT');
 
 export default db;

@@ -11,7 +11,21 @@ import xpRouter from './routes/xp.js';
 import dashboardRouter from './routes/dashboard.js';
 
 const app = express();
-app.use(cors());
+
+// Browsers enforce this, not us: the SPA is served from a different origin than
+// the API once deployed. CORS_ORIGIN is a comma-separated allowlist; with none
+// set (local dev) any origin is allowed. Auth travels as a Bearer header, not a
+// cookie, so no credentials flag is needed.
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: allowedOrigins.length ? allowedOrigins : true,
+  })
+);
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
@@ -33,4 +47,6 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}`));
+// Hosts route to the container's external interface, so don't bind to loopback.
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => console.log(`API listening on ${HOST}:${PORT}`));

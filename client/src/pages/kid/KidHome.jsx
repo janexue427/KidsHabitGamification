@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import QuestCelebration from '../../components/QuestCelebration.jsx';
+import { DIFFICULTIES, difficultyFor } from '../../constants/difficulty.js';
 
 export default function KidHome() {
   const [tasks, setTasks] = useState([]);
   const [milestones, setMilestones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [celebrate, setCelebrate] = useState(null);
+  const [rating, setRating] = useState(null);
   const { updateUser } = useAuth();
 
   async function load() {
@@ -24,11 +27,29 @@ export default function KidHome() {
     try {
       const res = await api.post(`/tasks/${task.id}/complete`, {});
       updateUser({ totalXp: res.totalXp });
-      setCelebrate({ xp: res.xpAwarded, milestones: res.milestonesCompleted });
-      setTimeout(() => setCelebrate(null), 2600);
+      setCelebrate({
+        completionId: res.completionId,
+        xp: res.xpAwarded,
+        milestones: res.milestonesCompleted,
+        taskTitle: task.title,
+        difficulty: null,
+      });
       load();
     } catch (err) {
       alert(err.message);
+    }
+  }
+
+  // Used by both the celebration sheet and the badge on an already-done card.
+  async function rate(completionId, difficulty) {
+    // Show the choice immediately; the request is a formality the kid needn't wait on.
+    setTasks((current) =>
+      current.map((t) => (t.completionId === completionId ? { ...t, difficulty } : t))
+    );
+    try {
+      await api.post(`/tasks/completions/${completionId}/difficulty`, { difficulty });
+    } catch {
+      load(); // put the real value back if the server disagreed
     }
   }
 
@@ -37,16 +58,11 @@ export default function KidHome() {
   return (
     <div className="space-y-8 relative">
       {celebrate && (
-        <div className="fixed top-6 inset-x-0 flex justify-center z-50 px-4">
-          <div className="bg-kid-yellow text-purple-900 font-fun font-bold text-lg px-6 py-3 rounded-2xl shadow-xl animate-bounce">
-            🎉 +{celebrate.xp} XP!
-            {celebrate.milestones?.map((m) => (
-              <div key={m.milestoneId} className="text-sm font-semibold mt-1">
-                🏆 Milestone reached: {m.title} (+{m.bonusXp} XP)
-              </div>
-            ))}
-          </div>
-        </div>
+        <QuestCelebration
+          celebration={celebrate}
+          onRate={(difficulty) => rate(celebrate.completionId, difficulty)}
+          onClose={() => setCelebrate(null)}
+        />
       )}
 
       <section>
@@ -57,32 +73,73 @@ export default function KidHome() {
           </p>
         )}
         <div className="space-y-3">
-          {tasks.map((task) => (
-            <div
-              key={task.id}
-              className={`flex items-center gap-4 rounded-2xl p-4 shadow ${
-                task.completedToday ? 'bg-green-100' : 'bg-white'
-              }`}
-            >
-              <span className="text-3xl">{task.icon}</span>
-              <div className="flex-1">
-                <p className="font-fun font-bold text-lg">{task.title}</p>
-                {task.description && <p className="text-sm text-gray-500">{task.description}</p>}
-                <p className="text-xs text-kid-purple font-semibold">+{task.xpValue} XP</p>
-              </div>
-              <button
-                disabled={task.completedToday}
-                onClick={() => complete(task)}
-                className={`px-4 py-2 rounded-xl font-bold text-sm shadow ${
-                  task.completedToday
-                    ? 'bg-green-500 text-white cursor-default'
-                    : 'bg-kid-purple text-white hover:scale-105 transition'
-                }`}
+          {tasks.map((task) => {
+            const rated = difficultyFor(task.difficulty);
+            return (
+              <div
+                key={task.id}
+                className={`rounded-2xl p-4 shadow ${task.completedToday ? 'bg-green-100' : 'bg-white'}`}
               >
-                {task.completedToday ? 'Done! ✅' : 'Complete'}
-              </button>
-            </div>
-          ))}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+                  <span className="text-3xl shrink-0">{task.icon}</span>
+                  <div className="flex-1 min-w-[8rem]">
+                    <p className="font-fun font-bold text-lg">{task.title}</p>
+                    {task.description && <p className="text-sm text-gray-500">{task.description}</p>}
+                    <p className="text-xs text-kid-purple font-semibold">+{task.xpValue} XP</p>
+                  </div>
+                  <button
+                    disabled={task.completedToday}
+                    onClick={() => complete(task)}
+                    className={`ml-auto px-5 min-h-[48px] rounded-xl font-bold text-sm shadow ${
+                      task.completedToday
+                        ? 'bg-green-500 text-white cursor-default'
+                        : 'bg-kid-purple text-white hover:scale-105 transition'
+                    }`}
+                  >
+                    {task.completedToday ? 'Done! ✅' : 'Complete'}
+                  </button>
+                </div>
+
+                {task.completedToday && (
+                  <div className="mt-3 pt-3 border-t border-green-200">
+                    {rating === task.completionId || !rated ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold text-green-800">How hard was it?</span>
+                        {DIFFICULTIES.map((d) => (
+                          <button
+                            key={d.key}
+                            onClick={() => {
+                              rate(task.completionId, d.key);
+                              setRating(null);
+                            }}
+                            aria-label={d.label}
+                            title={d.label}
+                            aria-pressed={task.difficulty === d.key}
+                            className={`text-2xl leading-none w-11 h-11 rounded-xl transition active:scale-90 ${
+                              task.difficulty === d.key
+                                ? 'bg-white ring-2 ring-kid-purple'
+                                : 'bg-white/70 hover:bg-white'
+                            }`}
+                          >
+                            {d.emoji}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setRating(task.completionId)}
+                        className="flex items-center gap-2 text-xs font-semibold text-green-800 min-h-[44px]"
+                      >
+                        <span className="text-xl qf-badge-pop">{rated.emoji}</span>
+                        <span>{rated.label}</span>
+                        <span className="text-green-600 underline">change</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -95,16 +152,16 @@ export default function KidHome() {
               return (
                 <div key={m.id} className="bg-white rounded-2xl p-4 shadow">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">{m.icon}</span>
-                    <div className="flex-1">
+                    <span className="text-2xl shrink-0">{m.icon}</span>
+                    <div className="flex-1 min-w-0">
                       <p className="font-fun font-bold">{m.title}</p>
                       <p className="text-xs text-gray-500">{m.description}</p>
                     </div>
-                    <span className="text-xs font-bold text-kid-orange">+{m.bonusXp} XP</span>
+                    <span className="text-xs font-bold text-kid-orange shrink-0 whitespace-nowrap">+{m.bonusXp} XP</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-3">
                     <div
-                      className={`h-3 rounded-full ${m.completedAt ? 'bg-green-500' : 'bg-kid-teal'}`}
+                      className={`h-3 rounded-full transition-all duration-700 ${m.completedAt ? 'bg-green-500' : 'bg-kid-teal'}`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>

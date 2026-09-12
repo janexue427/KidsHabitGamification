@@ -2,6 +2,10 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
+      screens: {
+        // A real mouse — i.e. not a phone or tablet in any orientation.
+        fine: { raw: '(hover: hover) and (pointer: fine)' },
+      },
       colors: {
         kid: {
           purple: '#7c3aed',

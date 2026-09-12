@@ -64,21 +64,21 @@ export default function ParentTasks() {
         <div className="space-y-3">
           {tasks.map((task) => (
             <div key={task.id} className={`bg-white rounded-2xl p-4 shadow ${!task.active && 'opacity-50'}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{task.icon}</span>
-                  <div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-2xl shrink-0">{task.icon}</span>
+                  <div className="min-w-0">
                     <p className="font-fun font-bold">{task.title}</p>
                     <p className="text-xs text-gray-400">
                       {task.recurrence} · +{task.xpValue} XP · {task.kidIds.length} kid(s) assigned
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => toggleActive(task)} className="text-xs bg-gray-100 px-2 py-1 rounded-lg">
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => toggleActive(task)} className="text-xs bg-gray-100 px-3 min-h-[40px] rounded-lg">
                     {task.active ? 'Pause' : 'Resume'}
                   </button>
-                  <button onClick={() => remove(task)} className="text-xs bg-red-50 text-red-600 px-2 py-1 rounded-lg">
+                  <button onClick={() => remove(task)} className="text-xs bg-red-50 text-red-600 px-3 min-h-[40px] rounded-lg">
                     Delete
                   </button>
                 </div>
@@ -92,13 +92,13 @@ export default function ParentTasks() {
       <div className="bg-white rounded-2xl p-4 shadow h-fit">
         <h3 className="font-fun font-bold text-lg mb-3">New Task</h3>
         <form onSubmit={submit} className="space-y-3">
-          <input required placeholder="Title (e.g. Brush teeth)" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
-          <input placeholder="Description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
+          <input required placeholder="Title (e.g. Brush teeth)" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm" />
+          <input placeholder="Description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className="w-full border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm" />
           <div className="flex gap-3">
-            <input placeholder="Icon" value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} className="w-16 border rounded-lg px-3 py-2 text-sm text-center" />
-            <input type="number" min="1" required placeholder="XP value" value={form.xpValue} onChange={(e) => setForm((f) => ({ ...f, xpValue: e.target.value }))} className="flex-1 border rounded-lg px-3 py-2 text-sm" />
+            <input placeholder="Icon" value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} className="w-16 shrink-0 border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm text-center" />
+            <input type="number" min="1" required placeholder="XP value" value={form.xpValue} onChange={(e) => setForm((f) => ({ ...f, xpValue: e.target.value }))} className="flex-1 min-w-0 border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm" />
           </div>
-          <select value={form.recurrence} onChange={(e) => setForm((f) => ({ ...f, recurrence: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm">
+          <select value={form.recurrence} onChange={(e) => setForm((f) => ({ ...f, recurrence: e.target.value }))} className="w-full border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm">
             <option value="daily">Every day</option>
             <option value="weekdays">Weekdays only</option>
             <option value="custom">Custom days</option>
@@ -110,7 +110,7 @@ export default function ParentTasks() {
                   type="button"
                   key={d}
                   onClick={() => toggleDay(i)}
-                  className={`px-2 py-1 rounded-lg text-xs font-semibold ${form.daysOfWeek.includes(i) ? 'bg-kid-purple text-white' : 'bg-gray-100 text-gray-500'}`}
+                  className={`px-3 min-h-[44px] rounded-lg text-xs font-semibold ${form.daysOfWeek.includes(i) ? 'bg-kid-purple text-white' : 'bg-gray-100 text-gray-500'}`}
                 >
                   {d}
                 </button>
@@ -125,7 +125,7 @@ export default function ParentTasks() {
                   type="button"
                   key={kid.id}
                   onClick={() => toggleKid(kid.id)}
-                  className={`px-2 py-1 rounded-lg text-sm ${form.kidIds.includes(kid.id) ? 'bg-kid-purple/20 ring-2 ring-kid-purple' : 'bg-gray-100'}`}
+                  className={`px-3 min-h-[44px] rounded-lg text-sm ${form.kidIds.includes(kid.id) ? 'bg-kid-purple/20 ring-2 ring-kid-purple' : 'bg-gray-100'}`}
                 >
                   {kid.avatar} {kid.name}
                 </button>
@@ -134,7 +134,7 @@ export default function ParentTasks() {
             </div>
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" className="w-full py-2 rounded-lg bg-kid-purple text-white font-semibold">
+          <button type="submit" className="w-full min-h-[48px] rounded-lg bg-kid-purple text-white font-semibold">
             Create Task
           </button>
         </form>

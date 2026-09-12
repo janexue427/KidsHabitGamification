@@ -41,17 +41,17 @@ export default function ParentAuth() {
 
   if (inviteCode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-kid-purple/10 px-4">
-        <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-8 text-center">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-kid-purple/10 px-4 py-8">
+        <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 sm:p-8 text-center">
           <div className="text-5xl mb-4">🎉</div>
           <h2 className="font-fun text-2xl font-bold mb-2">Family created!</h2>
           <p className="text-gray-600 mb-4">Share this invite code with your kids so they can log in:</p>
-          <div className="text-3xl font-fun font-extrabold tracking-widest bg-kid-yellow/30 rounded-xl py-3 mb-6">
+          <div className="text-2xl sm:text-3xl font-fun font-extrabold tracking-widest bg-kid-yellow/30 rounded-xl px-2 py-3 mb-6 break-all">
             {inviteCode}
           </div>
           <button
             onClick={() => navigate('/parent')}
-            className="w-full py-3 rounded-xl bg-kid-purple text-white font-semibold"
+            className="w-full min-h-[52px] rounded-xl bg-kid-purple text-white font-semibold"
           >
             Go to my dashboard
           </button>
@@ -61,9 +61,9 @@ export default function ParentAuth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-kid-purple/10 px-4">
-      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-8">
-        <Link to="/" className="text-sm text-gray-400 hover:text-gray-600">&larr; Back</Link>
+    <div className="min-h-[100dvh] flex items-center justify-center bg-kid-purple/10 px-4 py-8">
+      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 sm:p-8">
+        <Link to="/" className="inline-flex items-center min-h-[44px] -mt-2 text-sm text-gray-400 hover:text-gray-600">&larr; Back</Link>
         <h2 className="font-fun text-2xl font-bold mt-2 mb-6">
           {mode === 'login' ? 'Parent Login' : 'Create Your Family'}
         </h2>
@@ -83,14 +83,14 @@ export default function ParentAuth() {
           <button
             type="submit"
             disabled={loadingSubmit}
-            className="w-full py-3 rounded-xl bg-kid-purple text-white font-semibold disabled:opacity-50"
+            className="w-full min-h-[52px] rounded-xl bg-kid-purple text-white font-semibold disabled:opacity-50"
           >
             {mode === 'login' ? 'Log in' : 'Create family'}
           </button>
         </form>
 
         <button
-          className="mt-4 text-sm text-kid-purple underline"
+          className="mt-4 min-h-[44px] text-sm text-kid-purple underline"
           onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
         >
           {mode === 'login' ? "New here? Create a family" : 'Already have an account? Log in'}
@@ -107,7 +107,7 @@ function Field({ label, ...props }) {
       <input
         {...props}
         required
-        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-kid-purple"
+        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-kid-purple"
       />
     </label>
   );
