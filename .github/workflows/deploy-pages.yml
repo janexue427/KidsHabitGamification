@@ -52,11 +52,10 @@ jobs:
         working-directory: client
         run: cp dist/index.html dist/404.html
 
+      # Prerequisite, one time: Settings → Pages → Source: "GitHub Actions".
+      # The workflow token cannot create the Pages site itself (that is a repo
+      # admin action), so this step fails until the setting is flipped.
       - uses: actions/configure-pages@v5
-        with:
-          # Turns Pages on for the repo the first time this runs, so the deploy
-          # doesn't require a manual visit to Settings first.
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
