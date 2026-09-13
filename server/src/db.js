@@ -32,6 +32,24 @@ if (isReplica) {
   rawDb.sync();
 }
 
+// A replica only learns about other writers when it syncs. Syncing once at boot
+// leaves an instance permanently blind to anything written after that moment by
+// anyone else — which is exactly what happens during a deploy, when the new
+// instance boots while the old one is still serving writes. Keep pulling.
+const SYNC_INTERVAL_MS = Number(process.env.TURSO_SYNC_INTERVAL_MS || 10000);
+if (isReplica && SYNC_INTERVAL_MS > 0) {
+  const timer = setInterval(() => {
+    try {
+      rawDb.sync();
+    } catch (err) {
+      // A failed pull is survivable: reads carry on against the last good copy
+      // and the next tick tries again. Crashing the server would be worse.
+      console.error('Turso sync failed:', err.message);
+    }
+  }, SYNC_INTERVAL_MS);
+  timer.unref(); // never hold the process open on this alone
+}
+
 rawDb.pragma('journal_mode = WAL');
 rawDb.pragma('foreign_keys = ON');
 
