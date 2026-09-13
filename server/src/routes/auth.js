@@ -14,7 +14,8 @@ router.post('/signup', (req, res) => {
   if (!familyName || !parentName || !email || !password) {
     return res.status(400).json({ error: 'familyName, parentName, email, password are required' });
   }
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const existing = db.prepare('SELECT id FROM users WHERE lower(email) = ?').get(normalizedEmail);
   if (existing) return res.status(409).json({ error: 'Email already registered' });
 
   const now = new Date().toISOString();
@@ -28,7 +29,7 @@ router.post('/signup', (req, res) => {
   db.prepare(`
     INSERT INTO users (id, family_id, role, name, email, password_hash, avatar, total_xp, created_at)
     VALUES (?, ?, 'parent', ?, ?, ?, '🧑', 0, ?)
-  `).run(parentId, familyId, parentName, email, passwordHash, now);
+  `).run(parentId, familyId, parentName, normalizedEmail, passwordHash, now);
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(parentId);
   const token = signToken(user);
@@ -38,7 +39,9 @@ router.post('/signup', (req, res) => {
 // Parent login with email + password.
 router.post('/login', (req, res) => {
   const { email, password } = req.body || {};
-  const user = db.prepare("SELECT * FROM users WHERE email = ? AND role = 'parent'").get(email);
+  const user = db
+    .prepare("SELECT * FROM users WHERE lower(email) = ? AND role = 'parent'")
+    .get(String(email || '').trim().toLowerCase());
   if (!user || !bcrypt.compareSync(password || '', user.password_hash)) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }

@@ -24,6 +24,10 @@ services:
       # Which browser origin may call this API. Update if the Pages URL changes.
       - key: CORS_ORIGIN
         value: https://janexue427.github.io
-      # NOTE: the free plan has no persistent disk — SQLite is wiped on every
-      # deploy and on idle restarts. To keep family data, either add a paid
-      # disk mounted at /var/data and set DATA_DIR=/var/data, or move to Postgres.
+      # Storage lives in Turso, not on this host: the free plan wipes its disk on
+      # every deploy and idle restart. Both values are set in the Render dashboard
+      # rather than here, so the token stays out of the repository.
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false

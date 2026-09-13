@@ -1,19 +1,63 @@
-import Database from 'better-sqlite3';
+import Database from 'libsql';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// DATA_DIR lets the database live on a mounted disk in production,
-// where the deployed filesystem is otherwise wiped on every release.
+// DATA_DIR lets the database file live on a mounted disk. On a host with an
+// ephemeral filesystem it is scratch space for the Turso replica instead.
 const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const localFile = path.join(dataDir, 'app.sqlite');
 
-const db = new Database(path.join(dataDir, 'app.sqlite'));
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const syncUrl = process.env.TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN;
 
-db.exec(`
+// Two modes, same synchronous API:
+//   • no TURSO_DATABASE_URL  → a plain local SQLite file (local development)
+//   • TURSO_DATABASE_URL set → an embedded replica. Reads are served from the
+//     local file, writes go to Turso, and the replica is rebuilt from Turso on
+//     boot — which is what makes the data outlive a host that wipes its disk.
+export const isReplica = Boolean(syncUrl);
+if (syncUrl && !authToken) {
+  throw new Error('TURSO_DATABASE_URL is set but TURSO_AUTH_TOKEN is missing');
+}
+
+const rawDb = isReplica
+  ? new Database(localFile, { syncUrl, authToken })
+  : new Database(localFile);
+
+if (isReplica) {
+  // Pull whatever the primary already has before anything reads.
+  rawDb.sync();
+}
+
+rawDb.pragma('journal_mode = WAL');
+rawDb.pragma('foreign_keys = ON');
+
+// libsql attaches a _metadata field to single-row results that better-sqlite3
+// never had. Handlers that pass a row straight to res.json would leak it, so
+// strip it at the boundary and keep row shapes exactly as the app expects.
+const db = new Proxy(rawDb, {
+  get(target, prop, receiver) {
+    if (prop !== 'prepare') return Reflect.get(target, prop, receiver);
+    return (sql) => {
+      const stmt = target.prepare(sql);
+      return new Proxy(stmt, {
+        get(sTarget, sProp, sReceiver) {
+          if (sProp !== 'get') return Reflect.get(sTarget, sProp, sReceiver);
+          return (...args) => {
+            const row = sTarget.get(...args);
+            if (row && typeof row === 'object') delete row._metadata;
+            return row;
+          };
+        },
+      });
+    };
+  },
+});
+
+rawDb.exec(`
 CREATE TABLE IF NOT EXISTS families (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -138,9 +182,9 @@ CREATE TABLE IF NOT EXISTS redemptions (
 // Migrations for databases created before a column existed. Adding a column is
 // the only shape of change here, so a name check is enough to stay idempotent.
 function addColumn(table, column, definition) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  const cols = rawDb.prepare(`PRAGMA table_info(${table})`).all();
   if (!cols.some((c) => c.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    rawDb.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 }
 

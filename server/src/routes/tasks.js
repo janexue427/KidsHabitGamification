@@ -78,8 +78,14 @@ router.put('/:id', requireAuth, requireRole('parent'), (req, res) => {
 router.delete('/:id', requireAuth, requireRole('parent'), (req, res) => {
   const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND family_id = ?').get(req.params.id, req.user.familyId);
   if (!task) return res.status(404).json({ error: 'Task not found' });
-  db.prepare('DELETE FROM task_assignments WHERE task_id = ?').run(task.id);
-  db.prepare('DELETE FROM tasks WHERE id = ?').run(task.id);
+  // task_completions references this row, so deleting the task alone trips the
+  // foreign key. Clear the dependents in one transaction. Earned XP is untouched:
+  // xp_transactions is the ledger and does not point back at the task.
+  db.transaction(() => {
+    db.prepare('DELETE FROM task_completions WHERE task_id = ?').run(task.id);
+    db.prepare('DELETE FROM task_assignments WHERE task_id = ?').run(task.id);
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(task.id);
+  })();
   res.json({ ok: true });
 });
 

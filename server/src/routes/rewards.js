@@ -61,7 +61,12 @@ router.put('/:id', requireAuth, requireRole('parent'), (req, res) => {
 router.delete('/:id', requireAuth, requireRole('parent'), (req, res) => {
   const r = db.prepare('SELECT * FROM rewards WHERE id = ? AND family_id = ?').get(req.params.id, req.user.familyId);
   if (!r) return res.status(404).json({ error: 'Reward not found' });
-  db.prepare('DELETE FROM rewards WHERE id = ?').run(r.id);
+  // redemptions reference this row; drop them with it or the delete fails on the
+  // foreign key. Spent XP stays recorded in xp_transactions.
+  db.transaction(() => {
+    db.prepare('DELETE FROM redemptions WHERE reward_id = ?').run(r.id);
+    db.prepare('DELETE FROM rewards WHERE id = ?').run(r.id);
+  })();
   res.json({ ok: true });
 });
 
