@@ -38,6 +38,10 @@ export default function KidSuggest() {
   return (
     <div className="space-y-6">
       <h2 className="font-fun text-2xl font-bold text-kid-purple">Suggest an Idea 💡</h2>
+      <p className="text-sm text-gray-500 -mt-4">
+        Ask for a new quest, or a goal you want to go after — a personal best, a book, a new rank.
+        If a parent says yes, it appears for you straight away.
+      </p>
 
       <form onSubmit={submit} className="bg-white rounded-2xl p-4 shadow space-y-3">
         <div className="flex gap-2">
@@ -54,7 +58,12 @@ export default function KidSuggest() {
             </button>
           ))}
         </div>
-        <Field label="Title" value={form.title} onChange={update('title')} placeholder="Walk the dog every day" />
+        <Field
+          label="Title"
+          value={form.title}
+          onChange={update('title')}
+          placeholder={form.type === 'task' ? 'Walk the dog every day' : 'Beat my best 50m freestyle time'}
+        />
         <Field label="Description" value={form.description} onChange={update('description')} placeholder="Why this would be awesome" textarea />
         <Field label="Suggested XP (optional)" type="number" value={form.proposedXp} onChange={update('proposedXp')} placeholder="10" />
 

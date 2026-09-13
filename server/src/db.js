@@ -227,5 +227,9 @@ addColumn('tasks', 'day_of_month', 'INTEGER');
 // A parent's sign-off on a completion, and who gave it.
 addColumn('task_completions', 'verified_at', 'TEXT');
 addColumn('task_completions', 'verified_by', 'TEXT');
+// 'count'       — advances automatically as quests are completed (the original)
+// 'achievement' — a one-off a parent marks as reached: a personal best, a book
+//                 finished, a rank climbed. Nothing auto-advances these.
+addColumn('milestones', 'kind', "TEXT NOT NULL DEFAULT 'count'");
 
 export default db;

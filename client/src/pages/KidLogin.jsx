@@ -1,10 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
+// Kids retype the family code and their username every single time on a shared
+// tablet. Both are safe to keep on the device; the PIN is what actually guards
+// the account, so that is never stored.
+const REMEMBERED = 'questfam_kid_login';
+
+function loadRemembered() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(REMEMBERED) || '{}');
+    return { inviteCode: saved.inviteCode || '', username: saved.username || '' };
+  } catch {
+    return { inviteCode: '', username: '' };
+  }
+}
+
 export default function KidLogin() {
-  const [form, setForm] = useState({ inviteCode: '', username: '', pin: '' });
+  const [form, setForm] = useState({ ...loadRemembered(), pin: '' });
+  const [remember, setRemember] = useState(() => Boolean(loadRemembered().inviteCode));
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { user, login, loading } = useAuth();
@@ -22,6 +37,18 @@ export default function KidLogin() {
     setSubmitting(true);
     try {
       const data = await api.post('/auth/kid-login', form);
+      try {
+        if (remember) {
+          localStorage.setItem(
+            REMEMBERED,
+            JSON.stringify({ inviteCode: form.inviteCode.trim(), username: form.username.trim() })
+          );
+        } else {
+          localStorage.removeItem(REMEMBERED);
+        }
+      } catch {
+        // A locked-down browser refusing storage must not block the login.
+      }
       login(data);
       navigate('/kid');
     } catch (err) {
@@ -44,6 +71,18 @@ export default function KidLogin() {
           <Field label="Family Code" value={form.inviteCode} onChange={update('inviteCode')} placeholder="ABC123" autoCapitalize="characters" />
           <Field label="Your Username" value={form.username} onChange={update('username')} placeholder="dragonrider" />
           <Field label="PIN" type="password" inputMode="numeric" value={form.pin} onChange={update('pin')} placeholder="••••" />
+
+          <label className="flex items-center gap-3 min-h-[44px] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="w-5 h-5 accent-kid-purple"
+            />
+            <span className="text-sm text-gray-600">
+              Remember my code and username on this device
+            </span>
+          </label>
 
           {error && <p className="text-red-500 text-sm">{error}</p>}
 

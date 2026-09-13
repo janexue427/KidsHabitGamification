@@ -2,6 +2,9 @@ import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { applyXpTransaction } from '../utils/xp.js';
+
+export const MILESTONE_KINDS = ['count', 'achievement'];
 
 const router = Router();
 
@@ -12,6 +15,7 @@ function withAssignees(m) {
     title: m.title,
     description: m.description,
     icon: m.icon,
+    kind: m.kind || 'count',
     targetCount: m.target_count,
     bonusXp: m.bonus_xp,
     active: !!m.active,
@@ -29,16 +33,21 @@ router.get('/', requireAuth, requireRole('parent'), (req, res) => {
 });
 
 router.post('/', requireAuth, requireRole('parent'), (req, res) => {
-  const { title, description, icon, targetCount, bonusXp, kidIds } = req.body || {};
-  if (!title || !targetCount || !bonusXp) {
-    return res.status(400).json({ error: 'title, targetCount, bonusXp are required' });
+  const { title, description, icon, kind = 'count', targetCount, bonusXp, kidIds } = req.body || {};
+  if (!MILESTONE_KINDS.includes(kind)) return res.status(400).json({ error: 'Unknown milestone kind' });
+  if (!title || !bonusXp) return res.status(400).json({ error: 'title and bonusXp are required' });
+  // A one-off achievement has nothing to count towards, so it is always a
+  // single step; only a counting milestone needs a target.
+  const target = kind === 'achievement' ? 1 : Number(targetCount);
+  if (kind === 'count' && (!Number.isInteger(target) || target < 1)) {
+    return res.status(400).json({ error: 'targetCount is required for a counting milestone' });
   }
   const now = new Date().toISOString();
   const id = nanoid();
   db.prepare(`
-    INSERT INTO milestones (id, family_id, title, description, icon, target_count, bonus_xp, active, created_by, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-  `).run(id, req.user.familyId, title, description || '', icon || '🏆', targetCount, bonusXp, req.user.id, now);
+    INSERT INTO milestones (id, family_id, title, description, icon, kind, target_count, bonus_xp, active, created_by, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+  `).run(id, req.user.familyId, title, description || '', icon || '🏆', kind, target, bonusXp, req.user.id, now);
   assignKids(id, kidIds);
   const m = db.prepare('SELECT * FROM milestones WHERE id = ?').get(id);
   res.status(201).json({ milestone: withAssignees(m) });
@@ -77,6 +86,48 @@ router.delete('/:id', requireAuth, requireRole('parent'), (req, res) => {
 });
 
 // Kid: their own milestones with progress.
+/**
+ * Parent: mark an achievement milestone as reached by a kid.
+ *
+ * Only for the 'achievement' kind — a counting milestone completes itself as
+ * quests are finished, and hand-completing one would skip the work it stands for.
+ */
+router.post('/:id/achieve', requireAuth, requireRole('parent'), (req, res) => {
+  const { kidId } = req.body || {};
+  const m = db.prepare('SELECT * FROM milestones WHERE id = ? AND family_id = ?').get(req.params.id, req.user.familyId);
+  if (!m) return res.status(404).json({ error: 'Milestone not found' });
+  if ((m.kind || 'count') !== 'achievement') {
+    return res.status(400).json({ error: 'Only an achievement milestone can be marked reached' });
+  }
+  const assignment = db.prepare('SELECT * FROM milestone_assignments WHERE milestone_id = ? AND kid_id = ?').get(m.id, kidId);
+  if (!assignment) return res.status(404).json({ error: 'That milestone is not assigned to that kid' });
+  if (assignment.completed_at) return res.status(409).json({ error: 'Already marked as reached' });
+
+  const now = new Date().toISOString();
+  db.prepare('UPDATE milestone_assignments SET progress = ?, completed_at = ? WHERE milestone_id = ? AND kid_id = ?')
+    .run(m.target_count, now, m.id, kidId);
+  applyXpTransaction({ kidId, amount: m.bonus_xp, type: 'milestone', sourceId: m.id, note: m.title });
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(kidId);
+  res.json({ ok: true, bonusXp: m.bonus_xp, totalXp: user.total_xp });
+});
+
+/** Parent: undo a mistaken achievement, taking the bonus back with it. */
+router.post('/:id/unachieve', requireAuth, requireRole('parent'), (req, res) => {
+  const { kidId } = req.body || {};
+  const m = db.prepare('SELECT * FROM milestones WHERE id = ? AND family_id = ?').get(req.params.id, req.user.familyId);
+  if (!m) return res.status(404).json({ error: 'Milestone not found' });
+  const assignment = db.prepare('SELECT * FROM milestone_assignments WHERE milestone_id = ? AND kid_id = ?').get(m.id, kidId);
+  if (!assignment?.completed_at) return res.status(409).json({ error: 'That milestone is not marked as reached' });
+
+  db.prepare('UPDATE milestone_assignments SET progress = 0, completed_at = NULL WHERE milestone_id = ? AND kid_id = ?')
+    .run(m.id, kidId);
+  applyXpTransaction({ kidId, amount: -m.bonus_xp, type: 'milestone', sourceId: m.id, note: `${m.title} reversed` });
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(kidId);
+  res.json({ ok: true, xpReversed: m.bonus_xp, totalXp: user.total_xp });
+});
+
 router.get('/mine', requireAuth, requireRole('kid'), (req, res) => {
   const rows = db.prepare(`
     SELECT m.*, ma.progress, ma.completed_at

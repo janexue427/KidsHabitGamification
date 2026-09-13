@@ -54,7 +54,8 @@ export default function ParentSuggestions() {
             </div>
             {s.status === 'approved' && (
               <p className="text-xs text-green-600 mt-2">
-                Approved — create the matching {s.type} on the {s.type === 'task' ? 'Tasks' : 'Milestones'} page to activate it.
+                Approved — the {s.type === 'task' ? 'quest' : 'milestone'} was created and assigned to {s.kid?.name}.
+                {s.type === 'milestone' && ' Mark it reached on the Milestones page when they manage it.'}
               </p>
             )}
           </div>

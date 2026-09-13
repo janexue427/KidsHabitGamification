@@ -50,7 +50,7 @@ body {
    compositor — a mid-range phone has to run ~30 confetti pieces at once.
    --------------------------------------------------------------------------- */
 
-@keyframes qf-confetti-fall {
+@keyframes qf-fall-0 {
   0% {
     opacity: 0;
     transform: translate3d(0, -12vh, 0) rotate(0deg);
@@ -60,7 +60,63 @@ body {
   }
   100% {
     opacity: 0;
-    transform: translate3d(var(--qf-drift, 0px), 105vh, 0) rotate(var(--qf-spin, 540deg));
+    transform: translate3d(-140px, 105vh, 0) rotate(-720deg);
+  }
+}
+
+@keyframes qf-fall-1 {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-70px, 105vh, 0) rotate(540deg);
+  }
+}
+
+@keyframes qf-fall-2 {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0px, 105vh, 0) rotate(900deg);
+  }
+}
+
+@keyframes qf-fall-3 {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(70px, 105vh, 0) rotate(-540deg);
+  }
+}
+
+@keyframes qf-fall-4 {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(140px, 105vh, 0) rotate(720deg);
   }
 }
 
@@ -128,8 +184,19 @@ body {
   height: 14px;
   border-radius: 2px;
   will-change: transform, opacity;
-  animation: qf-confetti-fall var(--qf-duration, 2.4s) linear var(--qf-delay, 0s) forwards;
+  animation-duration: 2.4s;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  animation-iteration-count: 1;
 }
+
+/* One class per flight path. Duration and delay are set inline as longhand
+   properties — the shorthand with a var() in it is what Safari drops. */
+.qf-fall-0 { animation-name: qf-fall-0; }
+.qf-fall-1 { animation-name: qf-fall-1; }
+.qf-fall-2 { animation-name: qf-fall-2; }
+.qf-fall-3 { animation-name: qf-fall-3; }
+.qf-fall-4 { animation-name: qf-fall-4; }
 
 .qf-pop-in {
   animation: qf-pop-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;

@@ -62,12 +62,39 @@ router.post('/:id/resolve', requireAuth, requireRole('parent'), (req, res) => {
   if (!s) return res.status(404).json({ error: 'Suggestion not found' });
   if (s.status !== 'pending') return res.status(409).json({ error: 'Suggestion already resolved' });
 
+  const now = new Date().toISOString();
+  let created = null;
+
+  // Approving used to only stamp the row, leaving the parent to retype the
+  // whole thing on another page. Approval now builds it and assigns it to the
+  // kid who asked, which is what "approved" plainly means.
+  if (decision === 'approved') {
+    const newId = nanoid();
+    if (s.type === 'task') {
+      db.prepare(`
+        INSERT INTO tasks (id, family_id, title, description, icon, xp_value, recurrence, days_of_week, active, created_by, created_at)
+        VALUES (?, ?, ?, ?, '💡', ?, 'daily', NULL, 1, ?, ?)
+      `).run(newId, s.family_id, s.title, s.description || '', s.proposed_xp || 10, req.user.id, now);
+      db.prepare('INSERT OR IGNORE INTO task_assignments (task_id, kid_id) VALUES (?, ?)').run(newId, s.kid_id);
+      created = { type: 'task', id: newId, xpValue: s.proposed_xp || 10 };
+    } else {
+      // A kid's milestone idea is a thing they want to achieve, not a count of
+      // chores, so it becomes an achievement for a parent to mark when it happens.
+      db.prepare(`
+        INSERT INTO milestones (id, family_id, title, description, icon, kind, target_count, bonus_xp, active, created_by, created_at)
+        VALUES (?, ?, ?, ?, '⭐', 'achievement', 1, ?, 1, ?, ?)
+      `).run(newId, s.family_id, s.title, s.description || '', s.proposed_xp || 50, req.user.id, now);
+      db.prepare('INSERT OR IGNORE INTO milestone_assignments (milestone_id, kid_id, progress) VALUES (?, ?, 0)').run(newId, s.kid_id);
+      created = { type: 'milestone', id: newId, bonusXp: s.proposed_xp || 50 };
+    }
+  }
+
   db.prepare(`
     UPDATE suggestions SET status = ?, parent_note = ?, resolved_at = ? WHERE id = ?
-  `).run(decision, parentNote || null, new Date().toISOString(), s.id);
+  `).run(decision, parentNote || null, now, s.id);
 
   const updated = db.prepare('SELECT * FROM suggestions WHERE id = ?').get(s.id);
-  res.json({ suggestion: shape(updated) });
+  res.json({ suggestion: shape(updated), created });
 });
 
 export default router;

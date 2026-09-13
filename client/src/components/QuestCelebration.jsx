@@ -11,10 +11,11 @@ function useConfetti(active) {
     return Array.from({ length: CONFETTI_COUNT }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
-      drift: `${(Math.random() - 0.5) * 160}px`,
-      spin: `${360 + Math.random() * 720}deg`,
-      delay: `${Math.random() * 0.5}s`,
-      duration: `${1.9 + Math.random() * 1.3}s`,
+      // One of five prebuilt flight paths, rather than a custom property the
+      // keyframes read — Safari does not reliably resolve those.
+      path: Math.floor(Math.random() * 5),
+      delay: `${(Math.random() * 0.5).toFixed(2)}s`,
+      duration: `${(1.9 + Math.random() * 1.3).toFixed(2)}s`,
       color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
       round: i % 3 === 0,
     }));
@@ -78,15 +79,13 @@ export default function QuestCelebration({ celebration, onRate, onClose }) {
         {confetti.map((c) => (
           <span
             key={c.id}
-            className="qf-confetti"
+            className={`qf-confetti qf-fall-${c.path}`}
             style={{
               left: `${c.left}%`,
               background: c.color,
               borderRadius: c.round ? '50%' : '2px',
-              '--qf-drift': c.drift,
-              '--qf-spin': c.spin,
-              '--qf-delay': c.delay,
-              '--qf-duration': c.duration,
+              animationDelay: c.delay,
+              animationDuration: c.duration,
             }}
           />
         ))}

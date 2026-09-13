@@ -4,11 +4,16 @@ import { applyXpTransaction } from './xp.js';
 // Called whenever a kid completes a task: advances progress on every active
 // milestone assigned to them, awarding the bonus XP the moment one is reached.
 export function advanceMilestonesForKid(kidId) {
+  // Only counting milestones advance with quests. An achievement stands for
+  // something that happened away from the app — a personal best, a book
+  // finished — and a parent marks it; letting a quest tick it along would hand
+  // out the bonus for unrelated work.
   const assignments = db.prepare(`
     SELECT ma.*, m.target_count, m.bonus_xp, m.title, m.active
     FROM milestone_assignments ma
     JOIN milestones m ON m.id = ma.milestone_id
     WHERE ma.kid_id = ? AND m.active = 1 AND ma.completed_at IS NULL
+      AND COALESCE(m.kind, 'count') = 'count'
   `).all(kidId);
 
   const completed = [];
