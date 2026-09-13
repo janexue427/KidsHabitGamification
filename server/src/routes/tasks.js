@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { applyXpTransaction } from '../utils/xp.js';
-import { isDueOn, todayStr } from '../utils/recurrence.js';
+import { isDueOn, todayStr, isValidRecurrence } from '../utils/recurrence.js';
 import { advanceMilestonesForKid } from '../utils/milestones.js';
 import { isValidDifficulty } from '../utils/difficulty.js';
 
@@ -19,6 +19,7 @@ function taskWithAssignees(task) {
     xpValue: task.xp_value,
     recurrence: task.recurrence,
     daysOfWeek: task.days_of_week ? JSON.parse(task.days_of_week) : [],
+    dayOfMonth: task.day_of_month ?? null,
     active: !!task.active,
     kidIds,
   };
@@ -32,17 +33,21 @@ router.get('/', requireAuth, requireRole('parent'), (req, res) => {
 
 // Parent: create a task.
 router.post('/', requireAuth, requireRole('parent'), (req, res) => {
-  const { title, description, icon, xpValue, recurrence, daysOfWeek, kidIds } = req.body || {};
+  const { title, description, icon, xpValue, recurrence, daysOfWeek, dayOfMonth, kidIds } = req.body || {};
   if (!title || !xpValue || !recurrence) {
     return res.status(400).json({ error: 'title, xpValue, recurrence are required' });
   }
+  const invalid = validateSchedule({ recurrence, daysOfWeek, dayOfMonth });
+  if (invalid) return res.status(400).json({ error: invalid });
   const now = new Date().toISOString();
   const id = nanoid();
   db.prepare(`
-    INSERT INTO tasks (id, family_id, title, description, icon, xp_value, recurrence, days_of_week, active, created_by, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    INSERT INTO tasks (id, family_id, title, description, icon, xp_value, recurrence, days_of_week, day_of_month, active, created_by, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
   `).run(id, req.user.familyId, title, description || '', icon || '✅', xpValue, recurrence,
-    daysOfWeek ? JSON.stringify(daysOfWeek) : null, req.user.id, now);
+    daysOfWeek ? JSON.stringify(daysOfWeek) : null,
+    recurrence === 'monthly' ? Number(dayOfMonth) || 1 : null,
+    req.user.id, now);
 
   assignKids(id, kidIds);
   const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
@@ -53,9 +58,18 @@ router.post('/', requireAuth, requireRole('parent'), (req, res) => {
 router.put('/:id', requireAuth, requireRole('parent'), (req, res) => {
   const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND family_id = ?').get(req.params.id, req.user.familyId);
   if (!task) return res.status(404).json({ error: 'Task not found' });
-  const { title, description, icon, xpValue, recurrence, daysOfWeek, kidIds, active } = req.body || {};
+  const { title, description, icon, xpValue, recurrence, daysOfWeek, dayOfMonth, kidIds, active } = req.body || {};
+  if (recurrence !== undefined) {
+    const invalid = validateSchedule({
+      recurrence,
+      daysOfWeek: daysOfWeek !== undefined ? daysOfWeek : JSON.parse(task.days_of_week || '[]'),
+      dayOfMonth: dayOfMonth !== undefined ? dayOfMonth : task.day_of_month,
+    });
+    if (invalid) return res.status(400).json({ error: invalid });
+  }
+  const nextRecurrence = recurrence ?? task.recurrence;
   db.prepare(`
-    UPDATE tasks SET title = ?, description = ?, icon = ?, xp_value = ?, recurrence = ?, days_of_week = ?, active = ?
+    UPDATE tasks SET title = ?, description = ?, icon = ?, xp_value = ?, recurrence = ?, days_of_week = ?, day_of_month = ?, active = ?
     WHERE id = ?
   `).run(
     title ?? task.title,
@@ -64,6 +78,9 @@ router.put('/:id', requireAuth, requireRole('parent'), (req, res) => {
     xpValue ?? task.xp_value,
     recurrence ?? task.recurrence,
     daysOfWeek !== undefined ? JSON.stringify(daysOfWeek) : task.days_of_week,
+    nextRecurrence === 'monthly'
+      ? Number(dayOfMonth ?? task.day_of_month) || 1
+      : null,
     active !== undefined ? (active ? 1 : 0) : task.active,
     task.id
   );
@@ -167,6 +184,23 @@ router.post('/completions/:completionId/difficulty', requireAuth, requireRole('k
   db.prepare('UPDATE task_completions SET difficulty = ? WHERE id = ?').run(difficulty, completion.id);
   res.json({ ok: true, completionId: completion.id, difficulty });
 });
+
+// A schedule that cannot come round is a silent dead task, so the parts each
+// recurrence depends on are required rather than defaulted.
+function validateSchedule({ recurrence, daysOfWeek, dayOfMonth }) {
+  if (!isValidRecurrence(recurrence)) return 'Unknown recurrence';
+  if (recurrence === 'weekly' || recurrence === 'custom') {
+    const days = Array.isArray(daysOfWeek) ? daysOfWeek : [];
+    if (days.length === 0) return 'Pick at least one day of the week';
+    if (days.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) return 'Days of the week must be 0 (Sun) to 6 (Sat)';
+    if (recurrence === 'weekly' && days.length > 1) return 'A weekly task runs on a single day';
+  }
+  if (recurrence === 'monthly') {
+    const d = Number(dayOfMonth);
+    if (!Number.isInteger(d) || d < 1 || d > 31) return 'Day of the month must be between 1 and 31';
+  }
+  return null;
+}
 
 function assignKids(taskId, kidIds) {
   if (!Array.isArray(kidIds)) return;

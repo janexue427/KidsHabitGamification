@@ -192,5 +192,7 @@ addColumn('task_completions', 'difficulty', 'TEXT');
 // Google's stable subject id. Email can change on a Google account; sub cannot,
 // so it is what an account is actually keyed to once linked.
 addColumn('users', 'google_sub', 'TEXT');
+// Which day of the month a 'monthly' task falls on.
+addColumn('tasks', 'day_of_month', 'INTEGER');
 
 export default db;

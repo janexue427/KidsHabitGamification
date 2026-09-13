@@ -166,6 +166,52 @@ router.post('/kids', requireAuth, requireRole('parent'), (req, res) => {
   res.status(201).json({ kid: publicUser(user) });
 });
 
+/**
+ * Parent edits a kid in their own family: name, username, avatar, and PIN.
+ *
+ * The PIN is write-only — it is stored as a bcrypt hash and cannot be read
+ * back, so a forgotten one is reset here rather than recovered.
+ */
+router.put('/kids/:id', requireAuth, requireRole('parent'), (req, res) => {
+  const kid = db.prepare(`
+    SELECT * FROM users WHERE id = ? AND family_id = ? AND role = 'kid'
+  `).get(req.params.id, req.user.familyId);
+  if (!kid) return res.status(404).json({ error: 'Kid not found' });
+
+  const { name, username, avatar, pin } = req.body || {};
+
+  if (name !== undefined && !String(name).trim()) {
+    return res.status(400).json({ error: 'Name cannot be empty' });
+  }
+  if (username !== undefined) {
+    if (!String(username).trim()) return res.status(400).json({ error: 'Username cannot be empty' });
+    // Unique within the family, ignoring this kid's own current name.
+    const clash = db.prepare(`
+      SELECT id FROM users
+      WHERE family_id = ? AND role = 'kid' AND lower(username) = lower(?) AND id != ?
+    `).get(req.user.familyId, String(username).trim(), kid.id);
+    if (clash) return res.status(409).json({ error: 'That kid username is already taken in this family' });
+  }
+  if (pin !== undefined && pin !== null && pin !== '') {
+    if (!/^\d{4,8}$/.test(String(pin))) {
+      return res.status(400).json({ error: 'PIN must be 4 to 8 digits' });
+    }
+  }
+
+  db.prepare(`
+    UPDATE users SET name = ?, username = ?, avatar = ?, pin_hash = ? WHERE id = ?
+  `).run(
+    name !== undefined ? String(name).trim() : kid.name,
+    username !== undefined ? String(username).trim() : kid.username,
+    avatar !== undefined ? avatar : kid.avatar,
+    pin ? bcrypt.hashSync(String(pin), 10) : kid.pin_hash,
+    kid.id
+  );
+
+  const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(kid.id);
+  res.json({ kid: publicUser(updated), pinChanged: Boolean(pin) });
+});
+
 router.get('/kids', requireAuth, requireRole('parent'), (req, res) => {
   const kids = db.prepare("SELECT * FROM users WHERE family_id = ? AND role = 'kid' ORDER BY created_at").all(req.user.familyId);
   res.json({ kids: kids.map(publicUser) });
