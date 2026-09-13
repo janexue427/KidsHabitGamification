@@ -14,6 +14,10 @@ export default function KidHome() {
   const [celebrate, setCelebrate] = useState(null);
   const [rating, setRating] = useState(null);
   const [error, setError] = useState('');
+  const [note, setNote] = useState('');
+  // Which quest is mid-request. A tap on a phone lands easily twice, and the
+  // second one would race the first to the server.
+  const [busyTaskId, setBusyTaskId] = useState(null);
   const { updateUser } = useAuth();
 
   async function load() {
@@ -28,11 +32,29 @@ export default function KidHome() {
     load();
   }, []);
 
+  // A kid's page is often left open for hours, or overnight. Coming back to it
+  // would otherwise show yesterday's quests as still available, and tapping one
+  // fails against a server that knows better.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
+
   const day = week?.days.find((d) => d.date === selected) ?? week?.days[0];
   const isToday = day?.offset === 0;
 
   async function complete(task) {
+    if (busyTaskId) return; // a second tap while the first is still in flight
     setError('');
+    setNote('');
+    setBusyTaskId(task.id);
     try {
       const res = await api.post(`/tasks/${task.id}/complete`, { date: day.date });
       updateUser({ totalXp: res.totalXp });
@@ -47,7 +69,17 @@ export default function KidHome() {
       });
       load();
     } catch (err) {
-      setError(err.message);
+      // Already done is not really an error — the quest is finished, this view
+      // was just out of date. Say so kindly and show the truth.
+      if (/already completed/i.test(err.message)) {
+        setNote(`You already finished ${task.title} — nice work! ✅`);
+        setTimeout(() => setNote(''), 4000);
+        load();
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setBusyTaskId(null);
     }
   }
 
@@ -92,6 +124,11 @@ export default function KidHome() {
           {!isToday && <span className="text-xs font-semibold text-kid-orange">finish early ⚡</span>}
         </div>
 
+        {note && (
+          <p role="status" className="bg-green-50 border border-green-200 text-green-800 text-sm rounded-xl px-4 py-3 mb-3">
+            {note}
+          </p>
+        )}
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
         {day.tasks.length === 0 && (
@@ -119,15 +156,23 @@ export default function KidHome() {
                     </p>
                   </div>
                   <button
-                    disabled={task.completed}
+                    disabled={task.completed || busyTaskId === task.id}
                     onClick={() => complete(task)}
                     className={`ml-auto px-5 min-h-[48px] rounded-xl font-bold text-sm shadow ${
                       task.completed
                         ? 'bg-green-500 text-white cursor-default'
-                        : 'bg-kid-purple text-white hover:scale-105 transition'
+                        : busyTaskId === task.id
+                          ? 'bg-kid-purple/60 text-white cursor-wait'
+                          : 'bg-kid-purple text-white hover:scale-105 transition'
                     }`}
                   >
-                    {task.completed ? 'Done! ✅' : isToday ? 'Complete' : 'Do it early'}
+                    {task.completed
+                      ? 'Done! ✅'
+                      : busyTaskId === task.id
+                        ? 'Saving…'
+                        : isToday
+                          ? 'Complete'
+                          : 'Do it early'}
                   </button>
                 </div>
 
