@@ -44,6 +44,10 @@ jobs:
           # to the Render URL; until then the build falls back to /api, which
           # only resolves in local dev.
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          # Google OAuth client id. Public by design — it identifies the app to
+          # Google and is visible in any browser's network tab. Unset just means
+          # no Google button.
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
         run: npm run build
 
       - name: Add SPA fallback for deep links

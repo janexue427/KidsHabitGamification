@@ -189,5 +189,8 @@ function addColumn(table, column, definition) {
 }
 
 addColumn('task_completions', 'difficulty', 'TEXT');
+// Google's stable subject id. Email can change on a Google account; sub cannot,
+// so it is what an account is actually keyed to once linked.
+addColumn('users', 'google_sub', 'TEXT');
 
 export default db;

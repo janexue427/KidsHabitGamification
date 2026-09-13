@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import GoogleSignIn from '../components/GoogleSignIn.jsx';
 
 export default function ParentAuth() {
   const [mode, setMode] = useState('login');
@@ -9,8 +10,38 @@ export default function ParentAuth() {
   const [error, setError] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [loadingSubmit, setLoadingSubmit] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  // A first-time Google user has no family yet; hold their token while we ask.
+  const [pendingGoogle, setPendingGoogle] = useState(null);
+  const [newFamilyName, setNewFamilyName] = useState('');
   const { user, login, loading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    api.get('/auth/config').then((c) => setGoogleEnabled(Boolean(c.googleEnabled))).catch(() => {});
+  }, []);
+
+  async function signInWithGoogle(credential, familyName) {
+    setError('');
+    setGoogleBusy(true);
+    try {
+      const data = await api.post('/auth/google', familyName ? { credential, familyName } : { credential });
+      if (data.needsFamily) {
+        setPendingGoogle({ credential, email: data.email, name: data.name });
+        setNewFamilyName(`${data.name}'s Family`);
+        return;
+      }
+      login(data);
+      if (data.family) setInviteCode(data.family.inviteCode);
+      else navigate('/parent');
+    } catch (err) {
+      setError(err.message);
+      setPendingGoogle(null);
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
 
   if (!loading && user && !inviteCode) return <Navigate to={user.role === 'kid' ? '/kid' : '/parent'} replace />;
 
@@ -37,6 +68,48 @@ export default function ParentAuth() {
     } finally {
       setLoadingSubmit(false);
     }
+  }
+
+  if (pendingGoogle) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-kid-purple/10 px-4 py-8">
+        <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 sm:p-8">
+          <h2 className="font-fun text-2xl font-bold mb-1">One more thing</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Signed in as {pendingGoogle.email}. What should we call your family?
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              signInWithGoogle(pendingGoogle.credential, newFamilyName.trim());
+            }}
+            className="space-y-4"
+          >
+            <label className="block">
+              <span className="text-sm font-medium text-gray-600">Family name</span>
+              <input
+                required
+                autoFocus
+                value={newFamilyName}
+                onChange={(e) => setNewFamilyName(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-kid-purple"
+              />
+            </label>
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+            <button
+              type="submit"
+              disabled={googleBusy || !newFamilyName.trim()}
+              className="w-full min-h-[52px] rounded-xl bg-kid-purple text-white font-semibold disabled:opacity-50"
+            >
+              {googleBusy ? 'Creating…' : 'Create my family'}
+            </button>
+          </form>
+          <button onClick={() => setPendingGoogle(null)} className="mt-4 min-h-[44px] text-sm text-gray-400 underline">
+            Use a different account
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (inviteCode) {
@@ -67,6 +140,17 @@ export default function ParentAuth() {
         <h2 className="font-fun text-2xl font-bold mt-2 mb-6">
           {mode === 'login' ? 'Parent Login' : 'Create Your Family'}
         </h2>
+
+        {googleEnabled && (
+          <div className="mb-6">
+            <GoogleSignIn enabled={googleEnabled} onCredential={signInWithGoogle} disabled={googleBusy} />
+            <div className="flex items-center gap-3 mt-6" aria-hidden="true">
+              <span className="h-px flex-1 bg-gray-200" />
+              <span className="text-xs text-gray-400 uppercase tracking-wide">or use a password</span>
+              <span className="h-px flex-1 bg-gray-200" />
+            </div>
+          </div>
+        )}
 
         <form onSubmit={submit} className="space-y-4">
           {mode === 'signup' && (

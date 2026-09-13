@@ -31,3 +31,7 @@ services:
         sync: false
       - key: TURSO_AUTH_TOKEN
         sync: false
+      # Google sign-in. Public value, but set in the dashboard so it can be
+      # changed without a commit. Unset simply disables the Google button.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
