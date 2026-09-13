@@ -2,20 +2,25 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import QuestCelebration from '../../components/QuestCelebration.jsx';
+import StreakBanner from '../../components/StreakBanner.jsx';
+import WeekStrip from '../../components/WeekStrip.jsx';
 import { DIFFICULTIES, difficultyFor } from '../../constants/difficulty.js';
 
 export default function KidHome() {
-  const [tasks, setTasks] = useState([]);
+  const [week, setWeek] = useState(null);
   const [milestones, setMilestones] = useState([]);
+  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [celebrate, setCelebrate] = useState(null);
   const [rating, setRating] = useState(null);
+  const [error, setError] = useState('');
   const { updateUser } = useAuth();
 
   async function load() {
-    const [t, m] = await Promise.all([api.get('/tasks/mine/today'), api.get('/milestones/mine')]);
-    setTasks(t.tasks);
+    const [w, m] = await Promise.all([api.get('/tasks/mine/week'), api.get('/milestones/mine')]);
+    setWeek(w);
     setMilestones(m.milestones);
+    setSelected((current) => current ?? w.days[0]?.date ?? null);
     setLoading(false);
   }
 
@@ -23,40 +28,50 @@ export default function KidHome() {
     load();
   }, []);
 
+  const day = week?.days.find((d) => d.date === selected) ?? week?.days[0];
+  const isToday = day?.offset === 0;
+
   async function complete(task) {
+    setError('');
     try {
-      const res = await api.post(`/tasks/${task.id}/complete`, {});
+      const res = await api.post(`/tasks/${task.id}/complete`, { date: day.date });
       updateUser({ totalXp: res.totalXp });
       setCelebrate({
         completionId: res.completionId,
         xp: res.xpAwarded,
         milestones: res.milestonesCompleted,
         taskTitle: task.title,
+        streakBonus: res.streakBonus,
+        aheadOfTime: res.aheadOfTime,
         difficulty: null,
       });
       load();
     } catch (err) {
-      alert(err.message);
+      setError(err.message);
     }
   }
 
-  // Used by both the celebration sheet and the badge on an already-done card.
   async function rate(completionId, difficulty) {
-    // Show the choice immediately; the request is a formality the kid needn't wait on.
-    setTasks((current) =>
-      current.map((t) => (t.completionId === completionId ? { ...t, difficulty } : t))
+    setWeek((w) =>
+      w && {
+        ...w,
+        days: w.days.map((d) => ({
+          ...d,
+          tasks: d.tasks.map((t) => (t.completionId === completionId ? { ...t, difficulty } : t)),
+        })),
+      }
     );
     try {
       await api.post(`/tasks/completions/${completionId}/difficulty`, { difficulty });
     } catch {
-      load(); // put the real value back if the server disagreed
+      load();
     }
   }
 
   if (loading) return <p className="text-center text-gray-400 py-10">Loading your quests…</p>;
 
   return (
-    <div className="space-y-8 relative">
+    <div className="space-y-6 relative">
       {celebrate && (
         <QuestCelebration
           celebration={celebrate}
@@ -65,42 +80,58 @@ export default function KidHome() {
         />
       )}
 
+      <StreakBanner streak={week.streak} daysToBonus={week.daysToBonus} />
+
+      <WeekStrip days={week.days} selected={day.date} onSelect={setSelected} />
+
       <section>
-        <h2 className="font-fun text-2xl font-bold text-kid-purple mb-3">Today's Quests</h2>
-        {tasks.length === 0 && (
+        <div className="flex items-baseline justify-between gap-2 mb-3">
+          <h2 className="font-fun text-2xl font-bold text-kid-purple">
+            {isToday ? "Today's Quests" : `${day.weekday}'s Quests`}
+          </h2>
+          {!isToday && <span className="text-xs font-semibold text-kid-orange">finish early ⚡</span>}
+        </div>
+
+        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+
+        {day.tasks.length === 0 && (
           <p className="text-gray-500 bg-white rounded-2xl p-6 text-center shadow">
-            No quests for today — check back tomorrow! 🌤️
+            {isToday ? 'No quests today — enjoy! 🌤️' : `Nothing scheduled for ${day.weekday}.`}
           </p>
         )}
+
         <div className="space-y-3">
-          {tasks.map((task) => {
+          {day.tasks.map((task) => {
             const rated = difficultyFor(task.difficulty);
             return (
               <div
                 key={task.id}
-                className={`rounded-2xl p-4 shadow ${task.completedToday ? 'bg-green-100' : 'bg-white'}`}
+                className={`rounded-2xl p-4 shadow ${task.completed ? 'bg-green-100' : 'bg-white'}`}
               >
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
                   <span className="text-3xl shrink-0">{task.icon}</span>
                   <div className="flex-1 min-w-[8rem]">
                     <p className="font-fun font-bold text-lg">{task.title}</p>
                     {task.description && <p className="text-sm text-gray-500">{task.description}</p>}
-                    <p className="text-xs text-kid-purple font-semibold">+{task.xpValue} XP</p>
+                    <p className="text-xs text-kid-purple font-semibold">
+                      +{task.xpValue} XP
+                      {task.verified && <span className="ml-2 text-green-700">· checked by a parent ✓</span>}
+                    </p>
                   </div>
                   <button
-                    disabled={task.completedToday}
+                    disabled={task.completed}
                     onClick={() => complete(task)}
                     className={`ml-auto px-5 min-h-[48px] rounded-xl font-bold text-sm shadow ${
-                      task.completedToday
+                      task.completed
                         ? 'bg-green-500 text-white cursor-default'
                         : 'bg-kid-purple text-white hover:scale-105 transition'
                     }`}
                   >
-                    {task.completedToday ? 'Done! ✅' : 'Complete'}
+                    {task.completed ? 'Done! ✅' : isToday ? 'Complete' : 'Do it early'}
                   </button>
                 </div>
 
-                {task.completedToday && (
+                {task.completed && (
                   <div className="mt-3 pt-3 border-t border-green-200">
                     {rating === task.completionId || !rated ? (
                       <div className="flex flex-wrap items-center gap-2">
@@ -116,9 +147,7 @@ export default function KidHome() {
                             title={d.label}
                             aria-pressed={task.difficulty === d.key}
                             className={`text-2xl leading-none w-11 h-11 rounded-xl transition active:scale-90 ${
-                              task.difficulty === d.key
-                                ? 'bg-white ring-2 ring-kid-purple'
-                                : 'bg-white/70 hover:bg-white'
+                              task.difficulty === d.key ? 'bg-white ring-2 ring-kid-purple' : 'bg-white/70 hover:bg-white'
                             }`}
                           >
                             {d.emoji}

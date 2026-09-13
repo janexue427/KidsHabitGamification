@@ -185,6 +185,18 @@ CREATE TABLE IF NOT EXISTS rewards (
   created_at TEXT NOT NULL
 );
 
+-- One row per streak bonus paid out. The unique key is what stops a bonus
+-- being awarded twice for the same day, however often the streak is recomputed.
+CREATE TABLE IF NOT EXISTS streak_awards (
+  id TEXT PRIMARY KEY,
+  kid_id TEXT NOT NULL REFERENCES users(id),
+  awarded_date TEXT NOT NULL,
+  streak_length INTEGER NOT NULL,
+  xp INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(kid_id, awarded_date)
+);
+
 CREATE TABLE IF NOT EXISTS redemptions (
   id TEXT PRIMARY KEY,
   reward_id TEXT NOT NULL REFERENCES rewards(id),
@@ -212,5 +224,8 @@ addColumn('task_completions', 'difficulty', 'TEXT');
 addColumn('users', 'google_sub', 'TEXT');
 // Which day of the month a 'monthly' task falls on.
 addColumn('tasks', 'day_of_month', 'INTEGER');
+// A parent's sign-off on a completion, and who gave it.
+addColumn('task_completions', 'verified_at', 'TEXT');
+addColumn('task_completions', 'verified_by', 'TEXT');
 
 export default db;

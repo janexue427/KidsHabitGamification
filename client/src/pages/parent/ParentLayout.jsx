@@ -9,6 +9,7 @@ const navItems = [
   { to: '/parent/suggestions', label: 'Suggestions', icon: '💡' },
   { to: '/parent/rewards', label: 'Rewards', icon: '🎁' },
   { to: '/parent/redemptions', label: 'Redemptions', icon: '🎟️' },
+  { to: '/parent/checks', label: 'Quest Check', icon: '🔍' },
   { to: '/parent/kids', label: 'Kids', icon: '🧒' },
 ];
 

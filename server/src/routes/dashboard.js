@@ -2,23 +2,11 @@ import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { todayStr } from '../utils/recurrence.js';
+// One definition of a streak for both portals: counting future completions here
+// would show the parent a longer run than the kid sees.
+import { currentStreak, streakProgress } from '../utils/streak.js';
 
 const router = Router();
-
-function currentStreak(kidId) {
-  const dates = new Set(
-    db.prepare('SELECT DISTINCT completed_date FROM task_completions WHERE kid_id = ?').all(kidId).map((r) => r.completed_date)
-  );
-  let streak = 0;
-  const cursor = new Date();
-  // allow today to be "in progress" without breaking the streak
-  if (!dates.has(todayStr(cursor))) cursor.setDate(cursor.getDate() - 1);
-  while (dates.has(todayStr(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
 
 function startOfWeek() {
   const d = new Date();
@@ -33,6 +21,7 @@ router.get('/', requireAuth, requireRole('parent'), (req, res) => {
   const weekStart = startOfWeek();
 
   const kidSummaries = kids.map((kid) => {
+    const streak = currentStreak(kid.id);
     const tasksThisWeek = db.prepare(`
       SELECT COUNT(*) AS c FROM task_completions WHERE kid_id = ? AND completed_date >= ?
     `).get(kid.id, weekStart).c;
@@ -47,7 +36,8 @@ router.get('/', requireAuth, requireRole('parent'), (req, res) => {
       name: kid.name,
       avatar: kid.avatar,
       totalXp: kid.total_xp,
-      streak: currentStreak(kid.id),
+      streak,
+      daysToBonus: streakProgress(streak).daysToBonus,
       tasksThisWeek,
       pendingSuggestions,
       pendingRedemptions,

@@ -29,7 +29,7 @@ function useConfetti(active) {
  * so there is no rush and no way to lose it by tapping the wrong thing.
  */
 export default function QuestCelebration({ celebration, onRate, onClose }) {
-  const { xp, milestones = [], taskTitle, difficulty } = celebration;
+  const { xp, milestones = [], taskTitle, difficulty, streakBonus, aheadOfTime } = celebration;
   const confetti = useConfetti(true);
   const [shownXp, setShownXp] = useState(0);
   const [picked, setPicked] = useState(difficulty ?? null);
@@ -100,6 +100,16 @@ export default function QuestCelebration({ celebration, onRate, onClose }) {
 
         <p className="font-fun text-4xl font-extrabold text-kid-purple">+{shownXp} XP</p>
         {taskTitle && <p className="text-sm text-gray-500 mt-1 break-words">{taskTitle}</p>}
+        {aheadOfTime && (
+          <p className="text-xs font-semibold text-kid-orange mt-1">Finished early — nice planning! ⚡</p>
+        )}
+
+        {streakBonus && (
+          <div className="mt-4 bg-kid-orange/15 border border-kid-orange rounded-2xl px-3 py-2 qf-slide-up">
+            <p className="font-fun font-bold text-orange-900 text-sm">🔥 {streakBonus.streak}-day streak!</p>
+            <p className="text-xs text-orange-800">Bonus +{streakBonus.xp} XP</p>
+          </div>
+        )}
 
         {milestones.length > 0 && (
           <div className="mt-4 space-y-2">

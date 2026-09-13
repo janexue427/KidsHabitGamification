@@ -19,6 +19,7 @@ import ParentSuggestions from './pages/parent/ParentSuggestions.jsx';
 import ParentRewards from './pages/parent/ParentRewards.jsx';
 import ParentRedemptions from './pages/parent/ParentRedemptions.jsx';
 import ParentKids from './pages/parent/ParentKids.jsx';
+import ParentCompletions from './pages/parent/ParentCompletions.jsx';
 
 function RequireRole({ role, children }) {
   const { user, loading } = useAuth();
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="suggestions" element={<ParentSuggestions />} />
           <Route path="rewards" element={<ParentRewards />} />
           <Route path="redemptions" element={<ParentRedemptions />} />
+          <Route path="checks" element={<ParentCompletions />} />
           <Route path="kids" element={<ParentKids />} />
         </Route>
 
