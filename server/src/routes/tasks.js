@@ -3,7 +3,8 @@ import { nanoid } from 'nanoid';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { applyXpTransaction, recordXp } from '../utils/xp.js';
-import { isDueOn, todayStr, isValidRecurrence } from '../utils/recurrence.js';
+import { isDueOn, isValidRecurrence } from '../utils/recurrence.js';
+import { todayIn, addDays, weekdayName, familyTimezone } from '../utils/calendar.js';
 import { advanceMilestonesForKid } from '../utils/milestones.js';
 import { currentStreak, streakProgress, awardStreakBonusIfDue, revokeStreakAwardFor } from '../utils/streak.js';
 import { isValidDifficulty } from '../utils/difficulty.js';
@@ -110,10 +111,10 @@ router.delete('/:id', requireAuth, requireRole('parent'), (req, res) => {
 // Kid: today's tasks with completion state.
 router.get('/mine/today', requireAuth, requireRole('kid'), (req, res) => {
   const tasks = db.prepare('SELECT * FROM tasks WHERE family_id = ? AND active = 1').all(req.user.familyId);
-  const today = todayStr();
+  const today = todayIn(familyTimezone(db, req.user.familyId));
   const mine = tasks.filter((t) => {
     const assigned = db.prepare('SELECT 1 FROM task_assignments WHERE task_id = ? AND kid_id = ?').get(t.id, req.user.id);
-    return assigned && isDueOn(t, new Date());
+    return assigned && isDueOn(t, today);
   });
   const result = mine.map((t) => {
     const done = db.prepare(`
@@ -169,25 +170,24 @@ function shapeForDay(t, kidId, dateStr) {
 
 // Kid: the week ahead, so quests can be seen and finished before their day.
 router.get('/mine/week', requireAuth, requireRole('kid'), (req, res) => {
+  const timezone = familyTimezone(db, req.user.familyId);
+  const today = todayIn(timezone);
   const mine = assignedTasksFor(req.user.id, req.user.familyId);
-  const start = new Date();
   const days = [];
 
   for (let offset = 0; offset < LOOKAHEAD_DAYS; offset += 1) {
-    const date = new Date(start);
-    date.setDate(start.getDate() + offset);
-    const dateStr = todayStr(date);
-    const due = mine.filter((t) => isDueOn(t, date));
+    const dateStr = addDays(today, offset);
+    const due = mine.filter((t) => isDueOn(t, dateStr));
     days.push({
       date: dateStr,
-      weekday: date.toLocaleDateString('en-US', { weekday: 'long' }),
+      weekday: weekdayName(dateStr),
       offset,
       tasks: due.map((t) => shapeForDay(t, req.user.id, dateStr)),
     });
   }
 
-  const streak = currentStreak(req.user.id);
-  res.json({ days, ...streakProgress(streak) });
+  const streak = currentStreak(req.user.id, today);
+  res.json({ days, timezone, ...streakProgress(streak) });
 });
 
 // Kid: complete a task for today, awards XP.
@@ -203,7 +203,8 @@ router.post('/:id/complete', requireAuth, requireRole('kid'), (req, res) => {
   if (!assigned) return res.status(403).json({ error: 'This task is not assigned to you' });
 
   // A date may be given to tick off a quest before its day arrives.
-  const today = todayStr();
+  const timezone = familyTimezone(db, req.user.familyId);
+  const today = todayIn(timezone);
   const requested = req.body?.date ? String(req.body.date) : today;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(requested)) {
     return res.status(400).json({ error: 'date must look like YYYY-MM-DD' });
@@ -211,12 +212,10 @@ router.post('/:id/complete', requireAuth, requireRole('kid'), (req, res) => {
   if (requested < today) {
     return res.status(400).json({ error: 'Quests cannot be completed for a day that has passed' });
   }
-  const limit = new Date();
-  limit.setDate(limit.getDate() + LOOKAHEAD_DAYS - 1);
-  if (requested > todayStr(limit)) {
+  if (requested > addDays(today, LOOKAHEAD_DAYS - 1)) {
     return res.status(400).json({ error: `Quests can only be completed up to ${LOOKAHEAD_DAYS} days ahead` });
   }
-  if (!isDueOn(task, new Date(`${requested}T00:00:00`))) {
+  if (!isDueOn(task, requested)) {
     return res.status(400).json({ error: 'That quest is not scheduled for that day' });
   }
 
@@ -232,13 +231,16 @@ router.post('/:id/complete', requireAuth, requireRole('kid'), (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(completionId, task.id, req.user.id, requested, task.xp_value, difficulty ?? null, now);
 
-  applyXpTransaction({ kidId: req.user.id, amount: task.xp_value, type: 'task', sourceId: task.id, note: task.title });
+  applyXpTransaction({
+    kidId: req.user.id, amount: task.xp_value, type: 'task',
+    sourceId: task.id, completionId, note: task.title,
+  });
   const milestoneResults = advanceMilestonesForKid(req.user.id, req.user.familyId);
   // Only a completion dated today can extend the run that ends today.
   const streakBonus = requested === today ? awardStreakBonusIfDue(req.user.id, today) : null;
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const streak = currentStreak(req.user.id);
+  const streak = currentStreak(req.user.id, today);
   res.json({
     ok: true,
     completionId,

@@ -8,12 +8,12 @@ import db from '../db.js';
  * libsql, unlike better-sqlite3, does not nest transactions via savepoints —
  * calling a self-transacting helper from inside a transaction fails outright.
  */
-export function recordXp({ kidId, amount, type, sourceId = null, note = null }) {
+export function recordXp({ kidId, amount, type, sourceId = null, note = null, completionId = null }) {
   const id = nanoid();
   db.prepare(`
-    INSERT INTO xp_transactions (id, kid_id, amount, type, source_id, note, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, kidId, amount, type, sourceId, note, new Date().toISOString());
+    INSERT INTO xp_transactions (id, kid_id, amount, type, source_id, completion_id, note, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, kidId, amount, type, sourceId, completionId, note, new Date().toISOString());
   db.prepare('UPDATE users SET total_xp = total_xp + ? WHERE id = ?').run(amount, kidId);
   return id;
 }

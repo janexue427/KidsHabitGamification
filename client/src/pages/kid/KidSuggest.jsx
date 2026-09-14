@@ -39,22 +39,27 @@ export default function KidSuggest() {
     <div className="space-y-6">
       <h2 className="font-fun text-2xl font-bold text-kid-purple">Suggest an Idea 💡</h2>
       <p className="text-sm text-gray-500 -mt-4">
-        Ask for a new quest, or a goal you want to go after — a personal best, a book, a new rank.
+        Ask for a new quest, a goal you want to go after, or a reward worth saving up for.
         If a parent says yes, it appears for you straight away.
       </p>
 
       <form onSubmit={submit} className="bg-white rounded-2xl p-4 shadow space-y-3">
         <div className="flex gap-2">
-          {['task', 'milestone'].map((t) => (
+          {[
+            { key: 'task', label: 'Quest', icon: '⚔️' },
+            { key: 'milestone', label: 'Goal', icon: '🏆' },
+            { key: 'reward', label: 'Reward', icon: '🎁' },
+          ].map((t) => (
             <button
               type="button"
-              key={t}
-              onClick={() => setForm((f) => ({ ...f, type: t }))}
-              className={`flex-1 min-h-[48px] rounded-xl font-semibold text-sm capitalize ${
-                form.type === t ? 'bg-kid-purple text-white' : 'bg-gray-100 text-gray-500'
+              key={t.key}
+              onClick={() => setForm((f) => ({ ...f, type: t.key }))}
+              aria-pressed={form.type === t.key}
+              className={`flex-1 min-h-[48px] rounded-xl font-semibold text-sm ${
+                form.type === t.key ? 'bg-kid-purple text-white' : 'bg-gray-100 text-gray-500'
               }`}
             >
-              {t}
+              <span aria-hidden="true">{t.icon}</span> {t.label}
             </button>
           ))}
         </div>
@@ -62,10 +67,22 @@ export default function KidSuggest() {
           label="Title"
           value={form.title}
           onChange={update('title')}
-          placeholder={form.type === 'task' ? 'Walk the dog every day' : 'Beat my best 50m freestyle time'}
+          placeholder={
+            form.type === 'task'
+              ? 'Walk the dog every day'
+              : form.type === 'milestone'
+                ? 'Beat my best 50m freestyle time'
+                : 'Mommy and Me — 30 minutes'
+          }
         />
         <Field label="Description" value={form.description} onChange={update('description')} placeholder="Why this would be awesome" textarea />
-        <Field label="Suggested XP (optional)" type="number" value={form.proposedXp} onChange={update('proposedXp')} placeholder="10" />
+        <Field
+          label={form.type === 'reward' ? 'What should it cost? (optional)' : 'Suggested XP (optional)'}
+          type="number"
+          value={form.proposedXp}
+          onChange={update('proposedXp')}
+          placeholder={form.type === 'reward' ? '150' : '10'}
+        />
 
         {status === 'sent' && <p className="text-green-600 text-sm font-semibold">Sent to your parent! 🎉</p>}
         {status && status !== 'sent' && <p className="text-red-500 text-sm">{status}</p>}
@@ -101,7 +118,7 @@ function Field({ label, textarea, ...props }) {
       {textarea ? (
         <textarea {...props} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-kid-purple" />
       ) : (
-        <input {...props} required={label !== 'Suggested XP (optional)' && label !== 'Description'} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-kid-purple" />
+        <input {...props} required={!/optional/i.test(label) && label !== 'Description'} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-kid-purple" />
       )}
     </label>
   );

@@ -1,3 +1,5 @@
+import { weekdayOf, daysInMonthOf, dayOfMonthOf } from './calendar.js';
+
 // How often a task comes round.
 //
 //   daily     every day
@@ -20,12 +22,14 @@ function parseDays(json) {
   }
 }
 
-function daysInMonth(date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-}
-
-export function isDueOn(task, date) {
-  const dow = date.getDay();
+/**
+ * Is this task due on the given civil date (YYYY-MM-DD)?
+ *
+ * Takes a date string rather than a Date so the family's timezone is settled
+ * before it gets here, not re-derived differently at each call site.
+ */
+export function isDueOn(task, dateStr) {
+  const dow = weekdayOf(dateStr);
   switch (task.recurrence) {
     case 'daily':
       return true;
@@ -38,15 +42,11 @@ export function isDueOn(task, date) {
       // A task set for the 31st still has to happen in February, so a target
       // past the end of the month lands on the last day instead of vanishing.
       const target = Number(task.day_of_month) || 1;
-      return date.getDate() === Math.min(target, daysInMonth(date));
+      return dayOfMonthOf(dateStr) === Math.min(target, daysInMonthOf(dateStr));
     }
     default:
       // Unrecognised value means corrupt data. Showing the task every day is
       // noticeable and fixable; hiding it silently is not.
       return true;
   }
-}
-
-export function todayStr(date = new Date()) {
-  return date.toISOString().slice(0, 10);
 }

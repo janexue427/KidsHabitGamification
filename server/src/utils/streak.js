@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import db from '../db.js';
-import { todayStr } from './recurrence.js';
+import { addDays } from './calendar.js';
 import { recordXp } from './xp.js';
 
 export const STREAK_BONUS_EVERY = 7;
@@ -17,7 +17,7 @@ export const STREAK_BONUS_XP = 100;
  * Today still being unfinished does not break the streak; it simply has not
  * been added to it yet.
  */
-export function currentStreak(kidId, today = todayStr()) {
+export function currentStreak(kidId, today) {
   const done = new Set(
     db
       .prepare('SELECT DISTINCT completed_date FROM task_completions WHERE kid_id = ? AND completed_date <= ?')
@@ -25,13 +25,13 @@ export function currentStreak(kidId, today = todayStr()) {
       .map((r) => r.completed_date)
   );
 
-  const cursor = new Date(`${today}T00:00:00`);
-  if (!done.has(todayStr(cursor))) cursor.setDate(cursor.getDate() - 1);
+  let cursor = today;
+  if (!done.has(cursor)) cursor = addDays(cursor, -1);
 
   let streak = 0;
-  while (done.has(todayStr(cursor))) {
+  while (done.has(cursor)) {
     streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
+    cursor = addDays(cursor, -1);
   }
   return streak;
 }
@@ -54,7 +54,7 @@ export function streakProgress(streak) {
  * repeated calls on the same day collide with the unique index and pay nothing.
  * Called after every completion, since that is when a streak can grow.
  */
-export function awardStreakBonusIfDue(kidId, today = todayStr()) {
+export function awardStreakBonusIfDue(kidId, today) {
   const streak = currentStreak(kidId, today);
   if (streak === 0 || streak % STREAK_BONUS_EVERY !== 0) return null;
 

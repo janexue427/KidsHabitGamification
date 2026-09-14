@@ -11,6 +11,7 @@ const navItems = [
   { to: '/parent/redemptions', label: 'Redemptions', icon: '🎟️' },
   { to: '/parent/checks', label: 'Quest Check', icon: '🔍' },
   { to: '/parent/kids', label: 'Kids', icon: '🧒' },
+  { to: '/parent/family', label: 'Family', icon: '⚙️' },
 ];
 
 export default function ParentLayout() {

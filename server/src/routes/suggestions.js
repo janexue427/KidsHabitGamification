@@ -24,8 +24,8 @@ function shape(s) {
 // Kid: submit a suggestion for a new task or milestone.
 router.post('/', requireAuth, requireRole('kid'), (req, res) => {
   const { type, title, description, proposedXp } = req.body || {};
-  if (!type || !title || !['task', 'milestone'].includes(type)) {
-    return res.status(400).json({ error: 'type (task|milestone) and title are required' });
+  if (!type || !title || !['task', 'milestone', 'reward'].includes(type)) {
+    return res.status(400).json({ error: 'type (task|milestone|reward) and title are required' });
   }
   const now = new Date().toISOString();
   const id = nanoid();
@@ -77,6 +77,13 @@ router.post('/:id/resolve', requireAuth, requireRole('parent'), (req, res) => {
       `).run(newId, s.family_id, s.title, s.description || '', s.proposed_xp || 10, req.user.id, now);
       db.prepare('INSERT OR IGNORE INTO task_assignments (task_id, kid_id) VALUES (?, ?)').run(newId, s.kid_id);
       created = { type: 'task', id: newId, xpValue: s.proposed_xp || 10 };
+    } else if (s.type === 'reward') {
+      // proposed_xp on a reward idea is what the kid thinks it should cost.
+      db.prepare(`
+        INSERT INTO rewards (id, family_id, title, description, icon, xp_cost, category, active, created_at)
+        VALUES (?, ?, ?, ?, '🌟', ?, 'family-time', 1, ?)
+      `).run(newId, s.family_id, s.title, s.description || '', s.proposed_xp || 100, now);
+      created = { type: 'reward', id: newId, xpCost: s.proposed_xp || 100 };
     } else {
       // A kid's milestone idea is a thing they want to achieve, not a count of
       // chores, so it becomes an achievement for a parent to mark when it happens.

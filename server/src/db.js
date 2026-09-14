@@ -231,5 +231,50 @@ addColumn('task_completions', 'verified_by', 'TEXT');
 // 'achievement' — a one-off a parent marks as reached: a personal best, a book
 //                 finished, a rank climbed. Nothing auto-advances these.
 addColumn('milestones', 'kind', "TEXT NOT NULL DEFAULT 'count'");
+// Which clock the family's day runs on. Deriving "today" from UTC rolls the day
+// over mid-evening in the Americas, filing evening quests against tomorrow.
+addColumn('families', 'timezone', "TEXT NOT NULL DEFAULT 'America/New_York'");
+// Which completion an XP row came from. Previously the dashboard matched them by
+// date, which quietly broke once completion dates became civil dates in the
+// family's timezone rather than UTC.
+addColumn('xp_transactions', 'completion_id', 'TEXT');
+
+// Kids can suggest rewards as well as quests and goals. The type is guarded by a
+// CHECK constraint, and SQLite cannot alter one in place, so the table is rebuilt
+// when an older shape is found. Copy first, swap last, all in one transaction —
+// a half-applied rebuild would lose every suggestion the family has made.
+function widenSuggestionTypes() {
+  const existing = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='suggestions'").get();
+  if (!existing || existing.sql.includes("'reward'")) return;
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE suggestions_rebuilt (
+        id TEXT PRIMARY KEY,
+        family_id TEXT NOT NULL REFERENCES families(id),
+        kid_id TEXT NOT NULL REFERENCES users(id),
+        type TEXT NOT NULL CHECK(type IN ('task','milestone','reward')),
+        title TEXT NOT NULL,
+        description TEXT,
+        proposed_xp INTEGER,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+        parent_note TEXT,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT
+      );
+      INSERT INTO suggestions_rebuilt
+        SELECT id, family_id, kid_id, type, title, description, proposed_xp,
+               status, parent_note, created_at, resolved_at
+        FROM suggestions;
+      DROP TABLE suggestions;
+      ALTER TABLE suggestions_rebuilt RENAME TO suggestions;
+    `);
+  })();
+  db.exec('PRAGMA foreign_keys = ON');
+  console.log('Migrated suggestions to allow reward ideas');
+}
+
+widenSuggestionTypes();
 
 export default db;

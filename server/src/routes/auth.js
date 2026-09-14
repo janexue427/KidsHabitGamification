@@ -5,6 +5,7 @@ import db from '../db.js';
 import { signToken, requireAuth, requireRole } from '../middleware/auth.js';
 import { publicUser } from '../utils/serialize.js';
 import { verifyGoogleIdToken, googleEnabled } from '../utils/google.js';
+import { isValidTimezone, DEFAULT_TIMEZONE, todayIn, familyTimezone } from '../utils/calendar.js';
 
 const router = Router();
 const inviteCode = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 6);
@@ -25,8 +26,8 @@ router.post('/signup', (req, res) => {
   const parentId = nanoid();
   const passwordHash = bcrypt.hashSync(password, 10);
 
-  db.prepare('INSERT INTO families (id, name, invite_code, created_at) VALUES (?, ?, ?, ?)')
-    .run(familyId, familyName, code, now);
+  db.prepare('INSERT INTO families (id, name, invite_code, timezone, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(familyId, familyName, code, DEFAULT_TIMEZONE, now);
   db.prepare(`
     INSERT INTO users (id, family_id, role, name, email, password_hash, avatar, total_xp, created_at)
     VALUES (?, ?, 'parent', ?, ?, ?, '🧑', 0, ?)
@@ -34,7 +35,11 @@ router.post('/signup', (req, res) => {
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(parentId);
   const token = signToken(user);
-  res.status(201).json({ token, user: publicUser(user), family: { id: familyId, name: familyName, inviteCode: code } });
+  res.status(201).json({
+    token,
+    user: publicUser(user),
+    family: { id: familyId, name: familyName, inviteCode: code, timezone: DEFAULT_TIMEZONE },
+  });
 });
 
 // Parent login with email + password.
@@ -140,7 +145,16 @@ router.get('/me', requireAuth, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'Not found' });
   const family = db.prepare('SELECT * FROM families WHERE id = ?').get(user.family_id);
-  res.json({ user: publicUser(user), family: { id: family.id, name: family.name, inviteCode: family.invite_code } });
+  res.json({
+    user: publicUser(user),
+    family: {
+      id: family.id,
+      name: family.name,
+      inviteCode: family.invite_code,
+      timezone: familyTimezone(db, family.id),
+      today: todayIn(familyTimezone(db, family.id)),
+    },
+  });
 });
 
 // Parent adds a kid profile to the family.
@@ -210,6 +224,87 @@ router.put('/kids/:id', requireAuth, requireRole('parent'), (req, res) => {
 
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(kid.id);
   res.json({ kid: publicUser(updated), pinChanged: Boolean(pin) });
+});
+
+/**
+ * Parent: family settings. Only the timezone for now, but it is the setting
+ * that decides when everyone's day starts and ends, so it earns its own place.
+ */
+router.put('/family', requireAuth, requireRole('parent'), (req, res) => {
+  const { name, timezone } = req.body || {};
+  if (timezone !== undefined && !isValidTimezone(timezone)) {
+    return res.status(400).json({ error: 'Unknown timezone' });
+  }
+  if (name !== undefined && !String(name).trim()) {
+    return res.status(400).json({ error: 'Family name cannot be empty' });
+  }
+  const family = db.prepare('SELECT * FROM families WHERE id = ?').get(req.user.familyId);
+  db.prepare('UPDATE families SET name = ?, timezone = ? WHERE id = ?').run(
+    name !== undefined ? String(name).trim() : family.name,
+    timezone !== undefined ? timezone : family.timezone || DEFAULT_TIMEZONE,
+    family.id
+  );
+  const updated = db.prepare('SELECT * FROM families WHERE id = ?').get(family.id);
+  res.json({
+    family: {
+      id: updated.id,
+      name: updated.name,
+      inviteCode: updated.invite_code,
+      timezone: updated.timezone,
+      today: todayIn(updated.timezone),
+    },
+  });
+});
+
+/**
+ * Parent: add another grown-up to the family — a second parent, a grandparent.
+ * They get the same powers, because a co-parent who cannot approve a redemption
+ * is not much use.
+ */
+router.post('/parents', requireAuth, requireRole('parent'), (req, res) => {
+  const { name, email, password } = req.body || {};
+  if (!name || !email) return res.status(400).json({ error: 'name and email are required' });
+  const normalized = String(email).trim().toLowerCase();
+  if (!password && !googleEnabled) {
+    return res.status(400).json({ error: 'A password is required unless Google sign-in is set up' });
+  }
+  if (password && String(password).length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+  const clash = db.prepare('SELECT id FROM users WHERE lower(email) = ?').get(normalized);
+  if (clash) return res.status(409).json({ error: 'Someone is already signed up with that email' });
+
+  const id = nanoid();
+  db.prepare(`
+    INSERT INTO users (id, family_id, role, name, email, password_hash, avatar, total_xp, created_at)
+    VALUES (?, ?, 'parent', ?, ?, ?, '🧑', 0, ?)
+  `).run(id, req.user.familyId, String(name).trim(), normalized,
+    password ? bcrypt.hashSync(String(password), 10) : null, new Date().toISOString());
+
+  const created = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  res.status(201).json({ parent: publicUser(created), canUseGoogle: googleEnabled });
+});
+
+router.get('/parents', requireAuth, requireRole('parent'), (req, res) => {
+  const parents = db
+    .prepare("SELECT * FROM users WHERE family_id = ? AND role = 'parent' ORDER BY created_at")
+    .all(req.user.familyId);
+  res.json({
+    parents: parents.map((p) => ({ ...publicUser(p), isYou: p.id === req.user.id })),
+  });
+});
+
+/** Parent: remove another grown-up. Nobody may remove themselves. */
+router.delete('/parents/:id', requireAuth, requireRole('parent'), (req, res) => {
+  if (req.params.id === req.user.id) {
+    return res.status(400).json({ error: 'You cannot remove yourself from the family' });
+  }
+  const target = db
+    .prepare("SELECT * FROM users WHERE id = ? AND family_id = ? AND role = 'parent'")
+    .get(req.params.id, req.user.familyId);
+  if (!target) return res.status(404).json({ error: 'Parent not found' });
+  db.prepare('DELETE FROM users WHERE id = ?').run(target.id);
+  res.json({ ok: true });
 });
 
 router.get('/kids', requireAuth, requireRole('parent'), (req, res) => {

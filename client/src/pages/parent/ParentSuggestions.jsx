@@ -54,7 +54,8 @@ export default function ParentSuggestions() {
             </div>
             {s.status === 'approved' && (
               <p className="text-xs text-green-600 mt-2">
-                Approved — the {s.type === 'task' ? 'quest' : 'milestone'} was created and assigned to {s.kid?.name}.
+                Approved — the {s.type === 'task' ? 'quest' : s.type === 'reward' ? 'reward' : 'goal'} was created
+                {s.type === 'reward' ? ' and added to the shop.' : ` and assigned to ${s.kid?.name}.`}
                 {s.type === 'milestone' && ' Mark it reached on the Milestones page when they manage it.'}
               </p>
             )}
