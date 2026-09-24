@@ -90,5 +90,11 @@ export default function KidHistory() {
 }
 
 function labelForType(type) {
-  return { task: 'Quest completed', milestone: 'Milestone bonus', boost: 'XP boost', redemption: 'Reward redeemed' }[type] || type;
+  return {
+    task: 'Quest completed',
+    milestone: 'Milestone bonus',
+    boost: 'XP boost',
+    penalty: 'XP taken away',
+    redemption: 'Reward redeemed',
+  }[type] || type;
 }

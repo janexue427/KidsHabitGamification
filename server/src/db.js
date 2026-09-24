@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS xp_transactions (
   id TEXT PRIMARY KEY,
   kid_id TEXT NOT NULL REFERENCES users(id),
   amount INTEGER NOT NULL,
-  type TEXT NOT NULL CHECK(type IN ('task','milestone','boost','redemption')),
+  type TEXT NOT NULL CHECK(type IN ('task','milestone','boost','penalty','redemption')),
   source_id TEXT,
   note TEXT,
   created_at TEXT NOT NULL
@@ -276,5 +276,39 @@ function widenSuggestionTypes() {
 }
 
 widenSuggestionTypes();
+
+// Parents can dock XP as well as award it. 'penalty' is its own type rather than
+// a negative 'boost' so the ledger, the kid's history and the parent's activity
+// feed can each name it for what it is. Same rebuild dance as above, since
+// SQLite cannot alter a CHECK constraint in place.
+function allowPenaltyTransactions() {
+  const existing = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='xp_transactions'").get();
+  if (!existing || existing.sql.includes("'penalty'")) return;
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE xp_transactions_rebuilt (
+        id TEXT PRIMARY KEY,
+        kid_id TEXT NOT NULL REFERENCES users(id),
+        amount INTEGER NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('task','milestone','boost','penalty','redemption')),
+        source_id TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        completion_id TEXT
+      );
+      INSERT INTO xp_transactions_rebuilt
+        SELECT id, kid_id, amount, type, source_id, note, created_at, completion_id
+        FROM xp_transactions;
+      DROP TABLE xp_transactions;
+      ALTER TABLE xp_transactions_rebuilt RENAME TO xp_transactions;
+    `);
+  })();
+  db.exec('PRAGMA foreign_keys = ON');
+  console.log('Migrated xp_transactions to allow penalties');
+}
+
+allowPenaltyTransactions();
 
 export default db;

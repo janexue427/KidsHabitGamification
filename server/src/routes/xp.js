@@ -72,4 +72,35 @@ router.post('/boost', requireAuth, requireRole('parent'), (req, res) => {
   res.json({ ok: true, totalXp: updated.total_xp });
 });
 
+// Parent: dock XP from a kid as a penalty. The amount arrives positive, the same
+// way a boost does, and is stored negative — the sign is this endpoint's job,
+// not the caller's, so a stray minus in the client cannot turn a penalty into a
+// reward.
+router.post('/penalty', requireAuth, requireRole('parent'), (req, res) => {
+  const { kidId, amount, note } = req.body || {};
+  const requested = Math.round(Number(amount));
+  if (!kidId || !Number.isFinite(requested) || requested <= 0) {
+    return res.status(400).json({ error: 'kidId and a positive amount are required' });
+  }
+  // A kid who sees XP vanish with no explanation learns nothing from it, so the
+  // reason is required here even though a boost's note is optional.
+  const reason = typeof note === 'string' ? note.trim() : '';
+  if (!reason) return res.status(400).json({ error: 'A reason is required for a penalty' });
+
+  const kid = db.prepare("SELECT * FROM users WHERE id = ? AND family_id = ? AND role = 'kid'").get(kidId, req.user.familyId);
+  if (!kid) return res.status(404).json({ error: 'Kid not found' });
+
+  // Never push a balance below zero. A kid buried under a debt cannot redeem
+  // anything until they have dug back out, which punishes far longer than the
+  // parent intended — and the reward gate reads total_xp directly.
+  const applied = Math.min(requested, kid.total_xp);
+  if (applied <= 0) {
+    return res.status(400).json({ error: `${kid.name} has no XP left to take away` });
+  }
+
+  applyXpTransaction({ kidId, amount: -applied, type: 'penalty', note: reason });
+  const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(kidId);
+  res.json({ ok: true, totalXp: updated.total_xp, applied, requested, clamped: applied < requested });
+});
+
 export default router;

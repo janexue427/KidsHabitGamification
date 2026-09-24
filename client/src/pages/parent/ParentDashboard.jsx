@@ -14,13 +14,15 @@ export default function ParentDashboard() {
   const [period, setPeriod] = useState('day');
   const [selectedKid, setSelectedKid] = useState('all');
   const [series, setSeries] = useState([]);
-  const [boostForm, setBoostForm] = useState({ kidId: '', amount: '', note: '' });
-  const [boostStatus, setBoostStatus] = useState('');
+  // One form for both directions of a manual XP change. Which way it goes is a
+  // deliberate choice the parent makes, never a sign typed into the amount.
+  const [adjust, setAdjust] = useState({ mode: 'boost', kidId: '', amount: '', note: '' });
+  const [adjustStatus, setAdjustStatus] = useState(null);
 
   async function loadDashboard() {
     const d = await api.get('/dashboard');
     setData(d);
-    if (d.kids.length && !boostForm.kidId) setBoostForm((f) => ({ ...f, kidId: d.kids[0].id }));
+    if (d.kids.length && !adjust.kidId) setAdjust((f) => ({ ...f, kidId: d.kids[0].id }));
   }
 
   useEffect(() => {
@@ -44,20 +46,50 @@ export default function ParentDashboard() {
     })();
   }, [data, period, selectedKid]);
 
-  async function sendBoost(e) {
+  function setMode(mode) {
+    // Drop the old confirmation too: "Boost sent!" left sitting above a penalty
+    // form reads as though the penalty is what went through.
+    setAdjustStatus(null);
+    setAdjust((f) => ({ ...f, mode }));
+  }
+
+  async function submitAdjust(e) {
     e.preventDefault();
-    setBoostStatus('');
+    setAdjustStatus(null);
+    const isPenalty = adjust.mode === 'penalty';
+    const kidName = data.kids.find((k) => k.id === adjust.kidId)?.name || 'they';
+
+    if (isPenalty && !adjust.note.trim()) {
+      setAdjustStatus({ ok: false, message: 'Add a reason, so they know what the penalty is for.' });
+      return;
+    }
+
     try {
-      await api.post('/xp/boost', { kidId: boostForm.kidId, amount: Number(boostForm.amount), note: boostForm.note });
-      setBoostStatus('sent');
-      setBoostForm((f) => ({ ...f, amount: '', note: '' }));
+      const res = await api.post(isPenalty ? '/xp/penalty' : '/xp/boost', {
+        kidId: adjust.kidId,
+        amount: Number(adjust.amount),
+        note: adjust.note,
+      });
+      setAdjustStatus({
+        ok: true,
+        message: !isPenalty
+          ? 'Boost sent! \u26a1'
+          : res.clamped
+            // The server stops at zero rather than running a kid into debt, so
+            // say plainly that less came off than was asked for.
+            ? `Took away ${res.applied} XP \u2014 that was all ${kidName} had left.`
+            : `Took ${res.applied} XP away from ${kidName}.`,
+      });
+      setAdjust((f) => ({ ...f, amount: '', note: '' }));
       loadDashboard();
     } catch (err) {
-      setBoostStatus(err.message);
+      setAdjustStatus({ ok: false, message: err.message });
     }
   }
 
   if (!data) return <p className="text-gray-400">Loading dashboard…</p>;
+
+  const isPenalty = adjust.mode === 'penalty';
 
   return (
     <div className="space-y-8">
@@ -131,36 +163,74 @@ export default function ParentDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl p-4 shadow">
-          <h2 className="font-fun text-lg font-bold text-kid-purple mb-3">Send an XP Boost ⚡</h2>
-          <form onSubmit={sendBoost} className="space-y-3">
+          <h2 className="font-fun text-lg font-bold text-kid-purple mb-3">Adjust XP</h2>
+
+          <div role="group" aria-label="Direction of the XP change" className="flex gap-2 mb-3">
+            {[
+              { key: 'boost', label: 'Give a boost ⚡', on: 'bg-kid-purple text-white' },
+              { key: 'penalty', label: 'Take XP away ➖', on: 'bg-red-500 text-white' },
+            ].map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setMode(m.key)}
+                aria-pressed={adjust.mode === m.key}
+                className={`flex-1 min-h-[44px] rounded-lg text-sm font-semibold ${
+                  adjust.mode === m.key ? m.on : 'bg-gray-100 text-gray-500'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          <form onSubmit={submitAdjust} className="space-y-3">
             <select
-              value={boostForm.kidId}
-              onChange={(e) => setBoostForm((f) => ({ ...f, kidId: e.target.value }))}
+              value={adjust.kidId}
+              onChange={(e) => setAdjust((f) => ({ ...f, kidId: e.target.value }))}
               className="w-full border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm"
             >
               {data.kids.map((k) => (
-                <option key={k.id} value={k.id}>{k.name}</option>
+                <option key={k.id} value={k.id}>{k.name} · {k.totalXp} XP</option>
               ))}
             </select>
             <input
               type="number"
               min="1"
               required
-              placeholder="XP amount"
-              value={boostForm.amount}
-              onChange={(e) => setBoostForm((f) => ({ ...f, amount: e.target.value }))}
+              placeholder={isPenalty ? 'XP to take away' : 'XP amount'}
+              value={adjust.amount}
+              onChange={(e) => setAdjust((f) => ({ ...f, amount: e.target.value }))}
               className="w-full border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm"
             />
             <input
-              placeholder="Reason (optional)"
-              value={boostForm.note}
-              onChange={(e) => setBoostForm((f) => ({ ...f, note: e.target.value }))}
+              required={isPenalty}
+              placeholder={isPenalty ? 'Reason (required — they will see it)' : 'Reason (optional)'}
+              value={adjust.note}
+              onChange={(e) => setAdjust((f) => ({ ...f, note: e.target.value }))}
               className="w-full border rounded-lg px-3 py-2.5 fine:py-2 text-base fine:text-sm"
             />
-            {boostStatus === 'sent' && <p className="text-green-600 text-sm font-semibold">Boost sent! ⚡</p>}
-            {boostStatus && boostStatus !== 'sent' && <p className="text-red-500 text-sm">{boostStatus}</p>}
-            <button type="submit" disabled={!data.kids.length} className="w-full min-h-[48px] rounded-lg bg-kid-purple text-white font-semibold disabled:opacity-50">
-              Send Boost
+            {isPenalty && (
+              <p className="text-xs text-gray-400">
+                XP never drops below zero — a penalty bigger than their balance just empties it.
+              </p>
+            )}
+            {adjustStatus && (
+              <p
+                role="status"
+                className={`text-sm font-semibold ${adjustStatus.ok ? 'text-green-600' : 'text-red-500'}`}
+              >
+                {adjustStatus.message}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={!data.kids.length}
+              className={`w-full min-h-[48px] rounded-lg text-white font-semibold disabled:opacity-50 ${
+                isPenalty ? 'bg-red-500' : 'bg-kid-purple'
+              }`}
+            >
+              {isPenalty ? 'Take XP Away' : 'Send Boost'}
             </button>
           </form>
         </div>
